@@ -1,57 +1,22 @@
 import argparse
-import os
-import pickle
 
 import pytorch_lightning as pl
 import torch
 import torchvision
-import torchvision.transforms as T
 import wandb
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 from torch.nn import functional as F
-from torch.utils.data import Dataset, DataLoader
-from torch.utils.data.dataset import random_split
 
-from data_utils.svg_utils import render
+from svglatte.dataset import DeepVecFontDataModule
+from svglatte.dataset import deepsvg_dataset, deepvecfont_dataset
+from svglatte.dataset.deepsvg_dataset import DeepSVGDataModule
 from svglatte.models.lstm_layernorm import LayerNormLSTM
 from svglatte.models.vgg_contextual_loss import VGGContextualLoss
-from svglatte.utils.util import get_str_formatted_time
-
-HORSE = """               .,,.
-             ,;;*;;;;,
-            .-'``;-');;.
-           /'  .-.  /*;;
-         .'    \\d    \\;;               .;;;,
-        / o      `    \\;    ,__.     ,;*;;;*;,
-        \\__, _.__,'   \\_.-') __)--.;;;;;*;;;;,
-         `""`;;;\\       /-')_) __)  `\' ';;;;;;
-            ;*;;;        -') `)_)  |\\ |  ;;;;*;
-            ;;;;|        `---`    O | | ;;*;;;
-            *;*;\\|                 O  / ;;;;;*
-           ;;;;;/|    .-------\\      / ;*;;;;;
-          ;;;*;/ \\    |        '.   (`. ;;;*;;;
-          ;;;;;'. ;   |          )   \\ | ;;;;;;
-          ,;*;;;;\\/   |.        /   /` | ';;;*;
-           ;latte/    |/       /   /__/   ';;;
-           '*;;;/     |       /    |      ;*;
-                `""""`        `""""`     ;'"""
-
-
-def nice_print(msg, last=False):
-    print()
-    print("\033[0;35m" + msg + "\033[0m")
-    if last:
-        print()
-
-
-class AttrDict(dict):
-    def __init__(self, *args, **kwargs):
-        super(AttrDict, self).__init__(*args, **kwargs)
-        self.__dict__ = self
+from svglatte.utils.util import get_str_formatted_time, HORSE, nice_print, AttrDict
 
 
 def get_parser_main_model():
@@ -60,15 +25,12 @@ def get_parser_main_model():
     parser.add_argument('--model_name', type=str, default='main_model', choices=['main_model', 'neural_raster'],
                         help='current model_name')
     parser.add_argument('--bottleneck_bits', type=int, default=128, help='latent code number of bottleneck bits')
-    parser.add_argument('--glyphs_in_alphabet', type=int, default=52, help='number of glyphs in a alphabet')
     parser.add_argument('--ref_nshot', type=int, default=4, help='reference number')
     parser.add_argument('--in_channel', type=int, default=1, help='input image channel')
     parser.add_argument('--out_channel', type=int, default=1, help='output image channel')
     parser.add_argument('--batch_size', type=int, default=256, help='batch size')
     parser.add_argument('--image_size', type=int, default=64, help='image size')
-    parser.add_argument('--max_seq_len', type=int, default=51, help='maximum length of sequence')
-    parser.add_argument('--seq_feature_dim', type=int, default=10,
-                        help='feature dim (like vocab size) of one step of sequence feature')
+
     # experiment related
     parser.add_argument('--init_epoch', type=int, default=0, help='init epoch')
     parser.add_argument('--n_epochs', type=int, default=2000, help='number of epochs')
@@ -77,7 +39,6 @@ def get_parser_main_model():
     # parser.add_argument('--multi_gpu', type=bool, default=False)
     parser.add_argument('--gpus', type=int, default=0)
     parser.add_argument('--experiment_name', type=str, default='svglatte')
-    parser.add_argument('--data_root', type=str, default='data/vecfont_dataset')
     parser.add_argument('--ckpt_freq', type=int, default=25, help='save checkpoint frequency of epoch')
     parser.add_argument('--sample_freq', type=int, default=200, help='sample train output of steps')
     parser.add_argument('--val_freq', type=int, default=1000, help='sample validate output of steps')
@@ -112,8 +73,24 @@ def get_parser_main_model():
     parser.add_argument('--test_epoch', type=int, default=125, help='the testing checkpoint')
     parser.add_argument('--test_fontid', type=int, default=0, help='the testing font id')
 
+    # datasets
     parser.add_argument('--cache_to_disk', action='store_false', help='')
     parser.add_argument('--clean_disk_cache', action='store_true', help='')
+    parser.add_argument('--dataset', type=str, default='deepvecfont', choices=['deepvecfont', 'deepsvg', 'argoverse'])
+    ## deepvecfont
+    parser.add_argument('--deepvecfont_data_root', type=str, default='data/vecfont_dataset')
+    parser.add_argument('--deepvecfont_max_seq_len', type=int, default=51, help='maximum length of sequence')
+    parser.add_argument('--deepvecfont_seq_feature_dim', type=int, default=10,
+                        help='feature dim (like vocab size) of one step of sequence feature')
+    parser.add_argument('--deepvecfont_glyphs_in_alphabet', type=int, default=52, help='number of glyphs in a alphabet')
+    ## deepsvg
+    parser.add_argument('--deepsvg_data_root', type=str, default='data/deepsvg_dataset/icons_tensor/')
+    parser.add_argument('--deepsvg_meta_filepath', type=str, default='data/deepsvg_dataset/icons_meta.csv')
+    parser.add_argument('--deepsvg_max_num_groups', type=int, default=120, help='maximum number of groups')
+    parser.add_argument('--deepsvg_max_seq_len', type=int, default=200, help='maximum length of sequence')
+    parser.add_argument('--deepsvg_max_total_len', type=int, default=2000, help='maximum total length of an svg')
+    ## argoverse
+    # TODO
     return parser
 
 
@@ -259,7 +236,6 @@ class NeuralRasterizer(pl.LightningModule):
             "img_l1_loss": l1_loss,
             "img_vggcx_loss": vggcx_loss["cx_loss"],
         }
-
         # logging
         # loggers[0] --> wandb
         # loggers[1] --> tb
@@ -296,16 +272,18 @@ class NeuralRasterizer(pl.LightningModule):
                 self.current_epoch
             )
 
-            if self.global_step == 0:
-                for i, seq in enumerate(trg_seq[:32]):
-                    seq = (seq * self.train_std.to(self.device) + self.train_mean.to(self.device)).cpu().numpy()
-                    tgt_svg = render(seq)
-                    self.loggers[0].experiment.log({f"Svg/{subset}/{batch_idx}-{i}-target_svg": wandb.Html(tgt_svg)})
-                    self.loggers[1].experiment.add_text(
-                        f"Svg/{subset}/{batch_idx}-{i}-target_svg",
-                        tgt_svg,
-                        global_step=self.current_epoch
-                    )
+            ## Works only for the deepvecfont dataset
+            # if self.global_step == 0:
+            #     for i, seq in enumerate(trg_seq[:32]):
+            #         seq = (seq * self.train_std.to(self.device) + self.train_mean.to(self.device)).cpu().numpy()
+            #         from svglatte.dataset.deepvecfont_svg_utils import render
+            #         tgt_svg = render(seq)
+            #         self.loggers[0].experiment.log({f"Svg/{subset}/{batch_idx}-{i}-target_svg": wandb.Html(tgt_svg)})
+            #         self.loggers[1].experiment.add_text(
+            #             f"Svg/{subset}/{batch_idx}-{i}-target_svg",
+            #             tgt_svg,
+            #             global_step=self.current_epoch
+            #         )
 
         # return results
         return results
@@ -315,134 +293,36 @@ class NeuralRasterizer(pl.LightningModule):
         return results
 
 
-class DeepVecFontDataset(Dataset):
-    def __init__(
-            self,
-            pkl_path,
-            max_seq_len,
-            seq_feature_dim,
-            glyphs_in_alphabet,
-            rendered_transform=T.Compose([T.Lambda(lambda x: 1. - x)]),
-            cache_to_disk=True,
-            clean_disk_cache=False,
-    ):
-        self.glyphs_in_alphabet = glyphs_in_alphabet
-        self.max_seq_len = max_seq_len
-        self.seq_feature_dim = seq_feature_dim
-        self.cached_path = f"{pkl_path}.torchsave" if cache_to_disk else None
-
-        if cache_to_disk and not clean_disk_cache and os.path.isfile(self.cached_path):
-            self.sequences, self.rendered_images = torch.load(self.cached_path)
-            return
-
-        with open(pkl_path, "rb") as pkl_f:
-            all_glyphs = pickle.load(pkl_f)
-
-        # TODO perhaps the shapes should be different for efficiency during forward pass
-        self.sequences = torch.tensor([
-            alphabet["sequence"][i]
-            for alphabet in all_glyphs
-            for i in range(self.glyphs_in_alphabet)
-        ]).reshape(-1, self.max_seq_len, self.seq_feature_dim)
-        self.rendered_images = torch.tensor([
-            alphabet["rendered"][i]
-            for alphabet in all_glyphs
-            for i in range(self.glyphs_in_alphabet)
-        ]).reshape(-1, 1, 64, 64) / 255.
-        self.rendered_images = rendered_transform(self.rendered_images)
-
-        assert len(self.sequences) == len(self.rendered_images)
-
-        if cache_to_disk:
-            torch.save((self.sequences, self.rendered_images), self.cached_path)
-
-    def __getitem__(self, idx):
-        return self.sequences[idx], self.rendered_images[idx]
-
-    def __len__(self):
-        return len(self.sequences)
-
-
-class DeepVecFontDataModule(pl.LightningDataModule):
-    def __init__(
-            self,
-            data_root,
-            max_seq_len,
-            seq_feature_dim,
-            glyphs_in_alphabet=52,
-            valid_ratio=0.2,
-            batch_size: int = 32,
-            cache_to_disk=True,
-            clean_disk_cache=False,
-    ):
-        super(DeepVecFontDataModule, self).__init__()
-        self.batch_size = batch_size
-
-        self.fonts_train = DeepVecFontDataset(
-            f"{data_root}/train_all.pkl",
-            max_seq_len=max_seq_len,
-            seq_feature_dim=seq_feature_dim,
-            glyphs_in_alphabet=glyphs_in_alphabet,
-            cache_to_disk=cache_to_disk,
-            clean_disk_cache=clean_disk_cache,
-        )
-        n = len(self.fonts_train)
-        n_val = int(n * valid_ratio)
-        self.fonts_train, self.fonts_val = random_split(self.fonts_train, lengths=[n - n_val, n_val])
-        print(f"First idx in train: {self.fonts_train.indices[0]}\nFirst idx in val: {self.fonts_val.indices[0]}")
-        self.fonts_test = DeepVecFontDataset(
-            f"{data_root}/test_all.pkl",
-            max_seq_len=max_seq_len,
-            seq_feature_dim=seq_feature_dim,
-            glyphs_in_alphabet=glyphs_in_alphabet,
-            cache_to_disk=cache_to_disk,
-            clean_disk_cache=clean_disk_cache,
-        )
-
-        self.train_mean_and_std_cached_path = f"{data_root}/train_mean_and_std.torchsave" if cache_to_disk else None
-        if cache_to_disk and not clean_disk_cache and os.path.isfile(self.train_mean_and_std_cached_path):
-            self.train_mean, self.train_std = torch.load(self.train_mean_and_std_cached_path)
-            return
-
-        train_sequences = self.fonts_train.dataset[self.fonts_train.indices][0]
-        train_sequences = train_sequences.reshape(-1, train_sequences.shape[-1])
-        not_eos_or_padding_indices = (train_sequences[:, 0] == 0.) * (train_sequences[:, :4].sum(dim=1) != 0.)
-        train_sequences = train_sequences[not_eos_or_padding_indices]
-        self.train_mean = train_sequences.mean(dim=0)
-        self.train_mean[:4] = 0.
-        self.train_std = train_sequences.std(dim=0)
-        self.train_std[:4] = 1.
-        # self.train_mean = np.load(f'{data_root}/mean.npz')
-        # self.train_std = np.load(f'{data_root}/stdev.npz')
-
-        if cache_to_disk:
-            torch.save((self.train_mean, self.train_std), self.train_mean_and_std_cached_path)
-
-    def train_dataloader(self):
-        return DataLoader(self.fonts_train, batch_size=self.batch_size, num_workers=2)
-
-    def val_dataloader(self):
-        return DataLoader(self.fonts_val, batch_size=self.batch_size, num_workers=2)
-
-    def test_dataloader(self):
-        return DataLoader(self.fonts_test, batch_size=self.batch_size)
-
-    def predict_dataloader(self):
-        return DataLoader(self.fonts_test, batch_size=self.batch_size)
-
-
 def main(config):
     pl.seed_everything(72)
 
-    dm = DeepVecFontDataModule(
-        data_root=config.data_root,
-        max_seq_len=config.max_seq_len,
-        seq_feature_dim=config.seq_feature_dim,
-        glyphs_in_alphabet=config.glyphs_in_alphabet,
-        batch_size=config.batch_size,
-        cache_to_disk=config.cache_to_disk,
-        clean_disk_cache=config.clean_disk_cache,
-    )
+    if config.dataset == "deepvecfont":
+        seq_feature_dim = deepvecfont_dataset.SEQ_FEATURE_DIM
+        dm = DeepVecFontDataModule(
+            data_root=config.deepvecfont_data_root,
+            max_seq_len=config.deepvecfont_max_seq_len,
+            seq_feature_dim=config.deepvecfont_seq_feature_dim,
+            glyphs_in_alphabet=config.deepvecfont_glyphs_in_alphabet,
+            batch_size=config.batch_size,
+            cache_to_disk=config.cache_to_disk,
+            clean_disk_cache=config.clean_disk_cache,
+        )
+    elif config.dataset == "deepsvg":
+        seq_feature_dim = deepsvg_dataset.SEQ_FEATURE_DIM
+        dm = DeepSVGDataModule(
+            data_root=config.deepsvg_data_root,
+            meta_filepath=config.deepsvg_meta_filepath,
+            max_num_groups=config.deepsvg_max_num_groups,
+            max_seq_len=config.deepsvg_max_seq_len,
+            max_total_len=config.deepsvg_max_total_len,
+            batch_size=config.batch_size,
+            cache_to_disk=config.cache_to_disk,
+            clean_disk_cache=config.clean_disk_cache,
+        )
+    elif config.datset == "argoverse":
+        raise NotImplementedError()
+    else:
+        raise Exception(f"Invalid dataset passed: {config.dataset}")
 
     adam_optimizer_args = AttrDict()
     adam_optimizer_args.update({
@@ -456,7 +336,7 @@ def main(config):
         optimizer_args=adam_optimizer_args,
         l1_loss_w=config.l1_loss_w,
         cx_loss_w=config.cx_loss_w,
-        feature_dim=config.seq_feature_dim,
+        feature_dim=seq_feature_dim,
         hidden_size=config.hidden_size,
         num_hidden_layers=config.num_hidden_layers,
         ff_dropout_p=config.ff_dropout,
@@ -483,12 +363,14 @@ def main(config):
             default_root_dir="logs",
             logger=[wandb_logger, tb_logger],
             callbacks=[
-                EarlyStopping(monitor="Loss/val/loss", mode="min", patience=100, check_on_train_epoch_end=False)],
+                EarlyStopping(monitor="Loss/val/loss", mode="min", patience=100, check_on_train_epoch_end=False),
+                ModelCheckpoint(monitor="Loss/val/loss", save_last=True),
+            ],
             gpus=config.gpus,
             accelerator="gpu",
             strategy='dp',
             # strategy=DDPStrategy(find_unused_parameters=False),
-            resume_from_checkpoint="logs/svglatte_svglatte__2022.04.09_16.04.39/3ireo6s9_0/checkpoints/epoch=161-step=211572.ckpt",
+            # resume_from_checkpoint="logs/svglatte_svglatte__2022.04.09_16.04.39/3ireo6s9_0/checkpoints/epoch=161-step=211572.ckpt",
             # fast_dev_run=True,
             # limit_train_batches=10,
             # limit_val_batches=10,
@@ -498,12 +380,9 @@ def main(config):
     else:
         trainer = Trainer(
             max_epochs=config.n_epochs,
-            logger=tb_logger,
-            resume_from_checkpoint="lightning_logs/version_21/checkpoints/epoch=29-step=60.ckpt",
+            logger=[wandb_logger, tb_logger],
         )
     trainer.fit(neural_rasterizer, dm)
-
-    # ckpt_path="lightning_logs/version_21/epoch=29-step=60.ckpt"
 
 
 if __name__ == "__main__":
@@ -512,15 +391,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
     main(args)
-
-# def cli_main():
-#     cli = LightningCLI(
-#         NeuralRasterizer, DeepVecFontDataModule,
-#         seed_everything_default=42, save_config_overwrite=True, run=False
-#     )
-#     cli.trainer.fit(cli.model, datamodule=cli.datamodule)
-#     cli.trainer.test(ckpt_path="best", datamodule=cli.datamodule)
-#
-# if __name__ == "__main__":
-#     nice_print(HORSE)
-#     cli_main()
