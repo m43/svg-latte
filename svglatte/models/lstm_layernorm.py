@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# TODO credit source
+# Adapted from: https://github.com/pytorch/pytorch/issues/11335
 class LayerNormLSTMCell(nn.LSTMCell):
 
     def __init__(self, input_size, hidden_size, bias=True):
@@ -95,3 +95,29 @@ class LayerNormLSTM(nn.Module):
             cy = torch.stack(ct[-1])
 
         return y, (hy, cy)
+
+
+class LayerNormLSTMEncoder(nn.Module):
+    def __init__(
+            self,
+            lstm_input_size,
+            lstm_hidden_size,
+            lstm_num_layers,
+            lstm_bidirectional,
+            pack_sequences=False,
+            **kwargs,
+    ):
+        super(LayerNormLSTMEncoder, self).__init__()
+        if pack_sequences:
+            raise NotImplementedError("Sequence packing (and padding) are not supported by this model.")
+
+        self.lstm = LayerNormLSTM(lstm_input_size, lstm_hidden_size, lstm_num_layers, bidirectional=lstm_bidirectional)
+        self.output_size = 2 * lstm_hidden_size if not lstm_bidirectional else 4 * lstm_hidden_size
+
+    def forward(self, input_sequences, _):
+        _, (h, c) = self.lstm(input_sequences.transpose(0, 1), None)
+        if self.lstm.bidirectional:
+            h = h.reshape(h.shape[0] // 2, h.shape[1], h.shape[2] * 2)
+            c = c.reshape(c.shape[0] // 2, c.shape[1], c.shape[2] * 2)
+        latte = torch.cat((c[-1, :, :], h[-1, :, :]), -1)
+        return latte

@@ -1,3 +1,4 @@
+import pathlib
 from datetime import datetime
 
 
@@ -40,3 +41,8 @@ class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
+
+def ensure_dir(dirname):
+    dirname = pathlib.Path(dirname)
+    if not dirname.is_dir():
+        dirname.mkdir(parents=True, exist_ok=False)
