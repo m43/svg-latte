@@ -89,6 +89,8 @@ def get_parser_main_model():
     parser.add_argument('--argoverse_rendered_images_height', type=int, default=64, help='Width of rendered images')
     parser.add_argument('--argoverse_fast_run', action='store_true',
                         help='To gave a faster run, we use the smallest dataset subset for all datasets')
+    parser.add_argument('--argoverse_render_onthefly', action='store_true',
+                        help='Render images of any size on-the-fly, i.e. do not used the cached images')
     return parser
 
 
@@ -264,6 +266,7 @@ def get_dataset(config):
             rendered_images_width=config.argoverse_rendered_images_width,
             rendered_images_height=config.argoverse_rendered_images_height,
             batch_size=config.batch_size,
+            render_on_the_fly=config.argoverse_render_onthefly,
             fast_run=config.argoverse_fast_run,
         )
     else:
