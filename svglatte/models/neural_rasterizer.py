@@ -96,6 +96,9 @@ def get_parser_main_model():
                              'because (1.) DeepSVG svg tensors have a few unused features, we keep them internally to'
                              'be able to use the DeepSVG library, (2.) we leave only lines when preprocessing'
                              'Argoverse (curves are simplfied into lines).')
+    parser.add_argument('--argoverse_train_workers', type=int, default=4, help='')
+    parser.add_argument('--argoverse_val_workers', type=int, default=4, help='')
+    parser.add_argument('--argoverse_test_workers', type=int, default=0, help='')
     return parser
 
 
@@ -274,7 +277,11 @@ def get_dataset(config):
             render_on_the_fly=config.argoverse_render_onthefly,
             remove_redundant_features=not config.argoverse_keep_redundant_features,
             fast_run=config.argoverse_fast_run,
+            train_workers=config.argoverse_train_workers,
+            val_workers=config.argoverse_val_workers,
+            test_workers=config.argoverse_test_workers,
         )
+        seq_feature_dim = dm.train_ds.get_number_of_sequence_dimensions()
     else:
         raise Exception(f"Invalid dataset passed: {config.dataset}")
     return dm, seq_feature_dim
