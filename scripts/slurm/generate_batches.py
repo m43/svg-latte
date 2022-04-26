@@ -96,14 +96,25 @@ sbatch02 = { # same as 01, but 2000 epochs
     ]
 }
 
-sbatch02 = { # same as 01, but 2000 epochs
-    "id": "sbatch_02",
+sbatch03 = {
+    "id": "sbatch_03",
     "commands": [
-        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type fc_lstm --n_epochs 2000 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
+        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=64 --lr 0.0002 --weight_decay 0.0 --encoder_type lstm --no_layernorm --n_epochs 200 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
+        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=64 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --n_epochs 200 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
+        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=64 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 8 --n_epochs 200 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
+        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=64 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 8 --no_layernorm --n_epochs 200 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
+        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=64 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 12 --n_epochs 200 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
+        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=64 --lr 0.0002 --weight_decay 0.0 --encoder_type fc_lstm --n_epochs 200 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
+        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=64 --lr 0.0002 --weight_decay 0.0 --encoder_type fc_lstm --lstm_num_layers 8 --n_epochs 200 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
+        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=64 --lr 0.0002 --weight_decay 0.0 --encoder_type fc_lstm --lstm_num_layers 8 --latte_ingredients c --n_epochs 200 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
+        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=64 --lr 0.0002 --weight_decay 0.0 --encoder_type fc_lstm --lstm_num_layers 8 --no_layernorm --n_epochs 200 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
+        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=64 --lr 0.0002 --weight_decay 0.0 --encoder_type fc_lstm --lstm_num_layers 12 --n_epochs 200 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
+        "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_200x200_test --dataset=argoverse --gpus -1 --batch_size=64 --lr 0.0002 --weight_decay 0.0 --encoder_type fc_lstm --lstm_num_layers 12 --no_layernorm --n_epochs 200 --argoverse_rendered_images_width 200 --argoverse_rendered_images_height 200",
     ]
 }
 
-SBATCH = sbatch02
+
+SBATCH = sbatch03
 OUTPUT_FOLDER = f"./sbatch/{SBATCH['id']}"
 
 if __name__ == '__main__':
