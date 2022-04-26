@@ -91,6 +91,11 @@ def get_parser_main_model():
                         help='To gave a faster run, we use the smallest dataset subset for all datasets')
     parser.add_argument('--argoverse_render_onthefly', action='store_true',
                         help='Render images of any size on-the-fly, i.e. do not used the cached images')
+    parser.add_argument('--argoverse_keep_redundant_features', action='store_true',
+                        help='Keep the redundant features in svg tensor sequences. These features are redundant '
+                             'because (1.) DeepSVG svg tensors have a few unused features, we keep them internally to'
+                             'be able to use the DeepSVG library, (2.) we leave only lines when preprocessing'
+                             'Argoverse (curves are simplfied into lines).')
     return parser
 
 
@@ -267,6 +272,7 @@ def get_dataset(config):
             rendered_images_height=config.argoverse_rendered_images_height,
             batch_size=config.batch_size,
             render_on_the_fly=config.argoverse_render_onthefly,
+            remove_redundant_features=not config.argoverse_keep_redundant_features,
             fast_run=config.argoverse_fast_run,
         )
     else:

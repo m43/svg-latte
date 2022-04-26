@@ -17,13 +17,14 @@ class ArgoverseDataset(Dataset):
             caching_path_prefix,
             rendered_images_width=64,
             rendered_images_height=64,
-            render_on_the_fly=False,
+            remove_redundant_features=True,
     ):
         self.caching_path_prefix = caching_path_prefix
         self.rendered_images_width = rendered_images_width
         self.rendered_images_height = rendered_images_height
         self.render_on_the_fly = render_on_the_fly
 
+        self.remove_redundant_features = remove_redundant_features
         self.caching_path_sequences = f"{caching_path_prefix}.sequences.torchsave"
         self.caching_path_seq_mean = f"{caching_path_prefix}.seq_mean.torchsave"
         self.caching_path_seq_std = f"{caching_path_prefix}.seq_std.torchsave"
@@ -44,6 +45,25 @@ class ArgoverseDataset(Dataset):
             self._rendered_images = torch.load(self.caching_path_rendered_images)
             assert len(self._sequences) == len(self._rendered_images)
 
+        if self.remove_redundant_features:
+            # Remove redundant features:
+            # 1. DeepSVG has unused features in its standard format,
+            # 2. Argoverse has only lines
+            # Relevant fetaures:
+            # - 0 is move
+            # - 1 is line
+            # - 4 is eos
+            # - 5 is sos
+            # - 16 is x coordinate
+            # - 17 is y coordinate
+            self.SEQUENCE_FEATURE_DIMENSTIONS = [0, 1, 4, 5, 12, 13, 16 + 2, 17 + 2]
+            # Sanity check:
+            # torch.cat([s.sum(0)[None, :] for s in self.sequences]).sum(0)
+            # tensor([512979., 2584927., 0., 0., 39472., 39472.,
+            #         0., -78944., -78944., -78944., -78944., -78944., START_POS_X, START_POS_Y,
+            #         -3176850., -3176850., -3176850., -3176850., 28979378., 37385944.])
+        else:
+            self.SEQUENCE_FEATURE_DIMENSTIONS = range(CMDS_CLASSES + ARGS_DIM)
 
     @staticmethod
     def draw_svgtensor(
@@ -85,6 +105,7 @@ class ArgoverseDataset(Dataset):
             rendered_image = self._render_on_the_fly(idx, seq)
         else:
             rendered_image = self._rendered_images[idx]
+        seq = seq[:, self.SEQUENCE_FEATURE_DIMENSTIONS]
         return seq, rendered_image, length
 
     def __len__(self):
