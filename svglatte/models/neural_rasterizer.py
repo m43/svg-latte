@@ -59,6 +59,7 @@ def get_parser_main_model():
     parser.add_argument('--lstm_num_layers', type=int, default=4, help='svg encoder number of hidden layers')
     parser.add_argument('--lstm_dropout', type=float, default=0.0, help='lstm dropout')
     parser.add_argument('--lstm_bidirectional', action='store_true', help='')
+    parser.add_argument('--no_layernorm', action='store_true', help='')
     parser.add_argument('--no_sequence_packing', action='store_true', help='')
     parser.add_argument('--mha_num_layers', type=int, default=4, help='')
     parser.add_argument('--mha_hidden_size', type=int, default=512, help='')
@@ -329,6 +330,7 @@ def get_encoder(config):
         "lstm_dropout": config.lstm_dropout,
         "lstm_bidirectional": config.lstm_bidirectional,
         "pack_sequences": not config.no_sequence_packing,
+        "use_layernorm": not config.no_layernorm,
         "mha_num_layers": config.mha_num_layers,
         "mha_hidden_size": config.mha_hidden_size,
         "mha_num_heads": config.mha_num_heads,
@@ -471,7 +473,8 @@ def main(config):
                                     f"_h={config.lstm_hidden_size}" \
                                     f"_i-{config.latte_ingredients}" \
                                     f"_l={config.lstm_num_layers}" \
-                                    f"{'_nops' if config.no_sequence_packing else ''}" \
+                                    f"{'_noPS' if config.no_sequence_packing else ''}" \
+                                    f"{'_noLN' if config.no_layernorm else ''}" \
                                     f"_e={config.n_epochs}" \
                                     f"_b={config.batch_size}" \
                                     f"_lr={config.lr}" \

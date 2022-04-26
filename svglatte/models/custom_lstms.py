@@ -23,7 +23,8 @@ class SequenceEncoder(nn.Module):
                 kwargs['lstm_num_layers'],
                 kwargs['lstm_dropout'],
                 kwargs['lstm_bidirectional'],
-                kwargs['pack_sequences']
+                kwargs['pack_sequences'],
+                kwargs['use_layernorm'],
             )
         elif encoder_type == 'fc_lstm_original':
             self.sequence_encoder = FullyConnectedBiLSTMOriginal(
@@ -32,7 +33,8 @@ class SequenceEncoder(nn.Module):
                 kwargs['lstm_num_layers'],
                 kwargs['lstm_dropout'],
                 kwargs['lstm_bidirectional'],
-                kwargs['pack_sequences']
+                kwargs['pack_sequences'],
+                kwargs['use_layernorm'],
             )
         elif encoder_type == 'fc_lstm':
             self.sequence_encoder = FullyConnectedBiLSTM(
@@ -41,7 +43,8 @@ class SequenceEncoder(nn.Module):
                 kwargs['lstm_num_layers'],
                 kwargs['lstm_dropout'],
                 kwargs['lstm_bidirectional'],
-                kwargs['pack_sequences']
+                kwargs['pack_sequences'],
+                kwargs['use_layernorm'],
             )
         elif encoder_type == 'residual_lstm':
             self.sequence_encoder = ResidualBiLSTM(
@@ -50,7 +53,8 @@ class SequenceEncoder(nn.Module):
                 kwargs['lstm_num_layers'],
                 kwargs['lstm_dropout'],
                 kwargs['lstm_bidirectional'],
-                kwargs['pack_sequences']
+                kwargs['pack_sequences'],
+                kwargs['use_layernorm'],
             )
         elif encoder_type == 'lstm+mha':
             self.sequence_encoder = AttentiveFullyConnectedBiLSTM(
@@ -64,6 +68,7 @@ class SequenceEncoder(nn.Module):
                 kwargs['mha_hidden_size'],
                 kwargs['mha_num_heads'],
                 kwargs['mha_dropout'],
+                kwargs['use_layernorm'],
             )
         else:
             raise Exception(f"Encoder type '{encoder_type}' not supported")
@@ -99,12 +104,13 @@ class StackedBiLSTM(nn.Module):
             lstm_dropout,
             lstm_bidirectional,
             pack_sequences,
+            use_layernorm
     ):
         super(StackedBiLSTM, self).__init__()
 
         self.pack_sequences = pack_sequences
         self.bidirectional = lstm_bidirectional
-        self.layer_norm = nn.LayerNorm(lstm_input_size)
+        self.layer_norm = nn.LayerNorm(lstm_input_size) if use_layernorm else nn.Identity()
 
         self.lstm = nn.LSTM(
             lstm_input_size,
@@ -159,6 +165,7 @@ class FullyConnectedBiLSTMOriginal(nn.Module):
             lstm_dropout,
             lstm_bidirectional,
             pack_sequences,
+            use_layernorm,
     ):
         super(FullyConnectedBiLSTMOriginal, self).__init__()
 
@@ -175,7 +182,7 @@ class FullyConnectedBiLSTMOriginal(nn.Module):
                 lstm_hidden_size,
                 bidirectional=lstm_bidirectional,
                 batch_first=True)
-            norm = nn.LayerNorm(_layer_input_size)
+            norm = nn.LayerNorm(_layer_input_size) if use_layernorm else nn.Identity()
             drop = nn.Dropout(lstm_dropout)
 
             _layer_input_size += 2 * lstm_hidden_size if lstm_bidirectional else lstm_hidden_size
@@ -245,6 +252,7 @@ class FullyConnectedBiLSTM(nn.Module):
             lstm_dropout,
             lstm_bidirectional,
             pack_sequences,
+            use_layernorm,
     ):
         super(FullyConnectedBiLSTM, self).__init__()
 
@@ -261,7 +269,7 @@ class FullyConnectedBiLSTM(nn.Module):
                 lstm_hidden_size,
                 bidirectional=lstm_bidirectional,
                 batch_first=True)
-            norm = nn.LayerNorm(_layer_input_size)
+            norm = nn.LayerNorm(_layer_input_size) if use_layernorm else nn.Identity()
             drop = nn.Dropout(lstm_dropout)
 
             _layer_input_size += 2 * lstm_hidden_size if lstm_bidirectional else lstm_hidden_size
@@ -337,6 +345,7 @@ class ResidualBiLSTM(nn.Module):
             lstm_dropout,
             lstm_bidirectional,
             pack_sequences,
+            use_layernorm,
     ):
         super(ResidualBiLSTM, self).__init__()
         self.bidirectional = lstm_bidirectional
@@ -344,10 +353,10 @@ class ResidualBiLSTM(nn.Module):
         self.pack_sequences = pack_sequences
         if lstm_bidirectional:
             self.input_projection = nn.Linear(lstm_input_size, 2 * lstm_hidden_size)
-            self.input_norm = nn.LayerNorm(2 * lstm_hidden_size)
+            self.input_norm = nn.LayerNorm(2 * lstm_hidden_size) if use_layernorm else nn.Identity()
         else:
             self.input_projection = nn.Linear(lstm_input_size, lstm_hidden_size)
-            self.input_norm = nn.LayerNorm(lstm_hidden_size)
+            self.input_norm = nn.LayerNorm(lstm_hidden_size) if use_layernorm else nn.Identity()
 
         _lstms = []
         _norms = []
@@ -360,9 +369,9 @@ class ResidualBiLSTM(nn.Module):
                 bidirectional=lstm_bidirectional,
                 batch_first=True)
             if lstm_bidirectional:
-                norm = nn.LayerNorm(2 * lstm_hidden_size)
+                norm = nn.LayerNorm(2 * lstm_hidden_size) if use_layernorm else nn.Identity()
             else:
-                norm = nn.LayerNorm(lstm_hidden_size)
+                norm = nn.LayerNorm(lstm_hidden_size) if use_layernorm else nn.Identity()
             drop = nn.Dropout(lstm_dropout)
 
             _layer_input_size = 2 * lstm_hidden_size if lstm_bidirectional else lstm_hidden_size
@@ -430,11 +439,12 @@ class AttentiveFullyConnectedBiLSTM(nn.Module):
             mha_hidden_size,
             mha_num_heads,
             mha_dropout,
+            use_layernorm,
     ):
         super(AttentiveFullyConnectedBiLSTM, self).__init__()
 
         self.pack_sequences = pack_sequences
-        self.input_norm = nn.LayerNorm(lstm_input_size)
+        self.input_norm = nn.LayerNorm(lstm_input_size) if use_layernorm else nn.Identity()
 
         _lstms = []
         _norms = []
@@ -446,7 +456,7 @@ class AttentiveFullyConnectedBiLSTM(nn.Module):
                 lstm_hidden_size,
                 bidirectional=lstm_bidirectional,
                 batch_first=True)
-            norm = nn.LayerNorm(2 * lstm_hidden_size)
+            norm = nn.LayerNorm(2 * lstm_hidden_size) if use_layernorm else nn.Identity()
             drop = nn.Dropout(lstm_dropout)
 
             _layer_input_size = 2 * lstm_hidden_size if lstm_bidirectional else lstm_hidden_size
