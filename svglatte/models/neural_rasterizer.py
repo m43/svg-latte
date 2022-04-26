@@ -194,28 +194,27 @@ class NeuralRasterizer(pl.LightningModule):
 
         # logging
         self.log(f'Loss/{subset}/loss', loss,
-                 on_step=True, on_epoch=True, prog_bar=True, logger=True)
+                 on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
         self.log(f'Loss/{subset}/img_l1_loss', self.l1_loss_w * l1_loss,
-                 on_step=True, on_epoch=True, prog_bar=True, logger=True)
+                 on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
         self.log(f'Loss/{subset}/img_perceptual_loss', self.cx_loss_w * vggcx_loss['cx_loss'],
-                 on_step=True, on_epoch=True, prog_bar=True, logger=True)
+                 on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
 
-        if batch_idx % 200 == 0:
+        if batch_idx % 400 == 0:
             zipped = torch.concat(list(map(torch.cat, zip(dec_out[:32, None], trg_img[:32, None]))))
             zipped_image = torchvision.utils.make_grid(zipped)
             for logger in self.loggers:
                 if type(logger) == WandbLogger:
-                    logger.experiment.log({
-                        f'Images/{subset}/{batch_idx}-output_img': [wandb.Image(
-                            zipped_image,
-                            caption=f"loss:{loss} img_l1_loss:{l1_loss} img_vggcx_loss:{vggcx_loss['cx_loss']}")
-                        ]})
-                elif type(logger) == TensorBoardLogger:
-                    logger.experiment.add_image(
+                    logger.log_image(
                         f'Images/{subset}/{batch_idx}-output_img',
-                        zipped_image,
-                        self.current_epoch
-                    )
+                        [zipped_image],
+                        caption={0: f"loss:{loss} img_l1_loss:{l1_loss} img_vggcx_loss:{vggcx_loss['cx_loss']}"})
+                # elif type(logger) == TensorBoardLogger:
+                #     logger.experiment.add_image(
+                #         f'Images/{subset}/{batch_idx}-output_img',
+                #         zipped_image,
+                #         self.current_epoch
+                #     )
 
             if self.global_step == 0 and self.dataset_name == "deepvecfont":
                 for i, seq in enumerate(trg_seq_padded[:32]):
@@ -242,6 +241,9 @@ class NeuralRasterizer(pl.LightningModule):
     def test_step(self, test_batch, batch_idx):
         results = self.training_step(test_batch, batch_idx, subset="test")
         return results
+
+    def on_epoch_start(self):
+        print('\n')
 
 
 def get_dataset(config):
