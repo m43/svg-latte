@@ -40,12 +40,8 @@ def get_parser_main_model():
     parser.add_argument('--weight_decay', type=float, default=0.0, help='weight decay')
 
     # loss weight
-    parser.add_argument('--kl_beta', type=float, default=0.01, help='latent code kl loss beta')
-    parser.add_argument('--pt_c_loss_w', type=float, default=0.001, help='the weight of perceptual content loss')
     parser.add_argument('--cx_loss_w', type=float, default=0.1, help='the weight of contextual loss')
     parser.add_argument('--l1_loss_w', type=float, default=1, help='the weight of image reconstruction l1 loss')
-    parser.add_argument('--mdn_loss_w', type=float, default=1.0, help='the weight of mdn loss')
-    parser.add_argument('--softmax_loss_w', type=float, default=1.0, help='the weight of softmax ce loss')
 
     # encoder
     parser.add_argument('--encoder_type', type=str, choices=[
@@ -134,7 +130,8 @@ class NeuralRasterizer(pl.LightningModule):
         # vgg contextual loss
         self.l1_loss_w = l1_loss_w
         self.cx_loss_w = cx_loss_w
-        self.vggcxlossfunc = VGGContextualLoss()
+        if self.cx_loss_w > 0.0:
+            self.vggcxlossfunc = VGGContextualLoss()
 
     # TODO what does this method do
     # def init_state_input(self, sampled_bottleneck):
@@ -180,8 +177,11 @@ class NeuralRasterizer(pl.LightningModule):
         l1_loss = F.l1_loss(dec_out, trg_img)
 
         # compute losses
-        vggcx_loss = self.vggcxlossfunc(dec_out, trg_img)
-        # vggcx_loss = {'cx_loss': 0.0}
+        if self.cx_loss_w > 0.0:
+            vggcx_loss = self.vggcxlossfunc(dec_out, trg_img)
+        else:
+            vggcx_loss = {'cx_loss': torch.tensor([-1.0])}
+
         loss = self.l1_loss_w * l1_loss + self.cx_loss_w * vggcx_loss['cx_loss']
 
         # results
@@ -479,8 +479,9 @@ def main(config):
                                     f"_b={config.batch_size}" \
                                     f"_lr={config.lr}" \
                                     f"_wd={config.weight_decay}" \
-                                    f"_{datetime.now().strftime('%m.%d_%H.%M.%S')}"
-    wandb_logger = WandbLogger(project=config.experiment_name, version=config.experiment_version.replace("=", "-"))
+                                    f"_cx={config.cx_loss_w}" \
+                                    f"_l1={config.l1_loss_w}" \
+            # f"_{datetime.now().strftime('%m.%d_%H.%M.%S')}"
     wandb_logger.watch(neural_rasterizer)
     tb_logger = TensorBoardLogger("logs", name=config.experiment_name, version=config.experiment_version, )
     csv_logger = CSVLogger("logs", name=config.experiment_name, version=config.experiment_version, )
