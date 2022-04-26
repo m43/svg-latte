@@ -1,6 +1,5 @@
 import argparse
 from collections import OrderedDict
-from datetime import datetime
 
 import pytorch_lightning as pl
 import torch
@@ -10,6 +9,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.strategies import DDPStrategy
 from torch import nn
 from torch.nn import functional as F
 
@@ -343,7 +343,7 @@ def get_encoder(config):
         encoder = LayerNormLSTMEncoder(**encoder_args)
     elif config.encoder_type == "fc":
         raise NotImplementedError(
-            "The FC baseline is not yet implemnted. Need to figure out how to hae fixed input size.")
+            "The FC baseline is not yet implemnted. Need to figure out how to have fixed input size.")
         encoder = FCEncoder(**encoder_args)
     else:
         encoder = SequenceEncoder(**encoder_args)
@@ -484,11 +484,19 @@ def main(config):
                                     f"_cx={config.cx_loss_w}" \
                                     f"_l1={config.l1_loss_w}" \
             # f"_{datetime.now().strftime('%m.%d_%H.%M.%S')}"
+
+    wandb_logger = WandbLogger(
+        project=config.experiment_name,
+        version=config.experiment_version.replace("=", "-"),
+        settings=wandb.Settings(start_method='thread'),
+    )
     wandb_logger.watch(neural_rasterizer)
     tb_logger = TensorBoardLogger("logs", name=config.experiment_name, version=config.experiment_version, )
     csv_logger = CSVLogger("logs", name=config.experiment_name, version=config.experiment_version, )
 
     if torch.cuda.is_available() and config.gpus != 0:
+        strategy = 'dp' if config.cx_loss_w > 0.0 else DDPStrategy(find_unused_parameters=False),
+
         trainer = Trainer(
             max_epochs=config.n_epochs,
             default_root_dir="logs",
@@ -499,7 +507,8 @@ def main(config):
             ],
             gpus=config.gpus,
             accelerator="gpu",
-            strategy='dp',
+            strategy=strategy,
+            # strategy='dp',
             # strategy=DDPStrategy(find_unused_parameters=False),
             # resume_from_checkpoint="logs/svglatte_svglatte__2022.04.09_16.04.39/3ireo6s9_0/checkpoints/epoch=161-step=211572.ckpt",
             # num_sanity_val_steps=0,
