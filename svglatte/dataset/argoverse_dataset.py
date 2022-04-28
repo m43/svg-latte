@@ -15,8 +15,7 @@ from torch.utils.data import Dataset, DataLoader
 from deepsvg.difflib.tensor import SVGTensor
 from deepsvg.svglib.geom import Bbox, Angle, Point
 from deepsvg.svglib.svg import SVG
-from deepsvg.svglib.svg_path import SVGPath
-from svglatte.dataset.deepsvg_dataset import DeepSVGDatasetNoCache
+from svglatte.utils.util import pad_collate_fn
 
 CMDS_CLASSES = 7
 ARGS_DIM = 13  # 11 + 2
@@ -97,7 +96,7 @@ class ArgoverseDataset(Dataset):
 
     @staticmethod
     def draw_svgtensor(
-            svgtensor,
+            svg,
             output_width,
             output_height,
             fill=False,
@@ -108,9 +107,6 @@ class ArgoverseDataset(Dataset):
             color_firstlast=False,
             with_moves=True,
     ):
-        svgpath = SVGPath.from_tensor(svgtensor.data)
-        svg = SVG([svgpath], viewbox=Bbox(24))
-
         svg_str = svg.to_str(fill=fill, with_points=with_points, with_handles=with_handles, with_bboxes=with_bboxes,
                              with_markers=with_markers, color_firstlast=color_firstlast, with_moves=with_moves)
 
@@ -123,8 +119,8 @@ class ArgoverseDataset(Dataset):
         return Image.open(io.BytesIO(img_data))
 
     @staticmethod
-    def svgtensor_to_img(svgtensor, output_width=64, output_height=64):
-        pil_image = ArgoverseDataset.draw_svgtensor(svgtensor, output_width, output_height)
+    def svgtensor_to_img(svg, output_width=64, output_height=64):
+        pil_image = ArgoverseDataset.draw_svgtensor(svg, output_width, output_height)
         return torch.tensor(np.array(pil_image).transpose(2, 0, 1)[-1:]) / 255.
 
     def __getitem__(self, idx):
@@ -141,18 +137,16 @@ class ArgoverseDataset(Dataset):
         # svgtensor to svg (because svg has the easily accessible augmentation functionality (zoom, translate, ...)
         svg = SVG.from_tensor(svgtensor.data, viewbox=Bbox(24))
 
-        # working in the svg domain
+        # working in the svg domain (allows for simpler preprocessing and rendering compared to seq or svgtensor)
         svg = self._preprocess(svg)
+        if self.render_on_the_fly:
+            rendered_image = self._render_on_the_fly(idx, svg)
+        else:
+            rendered_image = self._rendered_images[idx]
 
         # svg back to svgtensor
         tensor_data = svg.to_tensor(concat_groups=True, PAD_VAL=-1)
         svgtensor = SVGTensor.from_data(tensor_data)
-
-        # working in the svgtensor domain
-        if self.render_on_the_fly:
-            rendered_image = self._render_on_the_fly(idx, svgtensor)
-        else:
-            rendered_image = self._rendered_images[idx]
 
         # svgtensor back to seq
         svgtensor.add_eos()
@@ -174,12 +168,12 @@ class ArgoverseDataset(Dataset):
     def get_number_of_sequence_dimensions(self):
         return len(self.SEQUENCE_FEATURE_DIMENSTIONS)
 
-    def _render_on_the_fly(self, idx, svgtensor):
+    def _render_on_the_fly(self, idx, svg):
         # if self.cache_render_on_the_fly and self.rendered_images[idx] is not None:
         #     return self.rendered_images[idx]
 
         rendered_image = ArgoverseDataset.svgtensor_to_img(
-            svgtensor,
+            svg,
             self.rendered_images_width,
             self.rendered_images_height
         )

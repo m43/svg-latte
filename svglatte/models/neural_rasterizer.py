@@ -1,5 +1,6 @@
 import argparse
 from collections import OrderedDict
+from datetime import datetime
 
 import pytorch_lightning as pl
 import torch
@@ -9,13 +10,12 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.strategies import DDPStrategy
 from torch import nn
 from torch.nn import functional as F
 
-from svglatte.dataset import DeepVecFontDataModule
 from svglatte.dataset import argoverse_dataset
-from svglatte.dataset import deepsvg_dataset, deepvecfont_dataset
+from svglatte.dataset import deepsvg_dataset
+from svglatte.dataset import deepvecfont_dataset
 from svglatte.models.custom_lstms import SequenceEncoder
 from svglatte.models.lstm_layernorm import LayerNormLSTMEncoder
 from svglatte.models.vgg_contextual_loss import VGGContextualLoss
@@ -96,6 +96,28 @@ def get_parser_main_model():
     parser.add_argument('--argoverse_train_workers', type=int, default=4, help='')
     parser.add_argument('--argoverse_val_workers', type=int, default=4, help='')
     parser.add_argument('--argoverse_test_workers', type=int, default=0, help='')
+    parser.add_argument('--argoverse_augment_train', action='store_true',
+                        help='Add augmentations to train dataset.')
+    parser.add_argument('--argoverse_augment_shear_degrees', type=float, default=20.0,
+                        help='Angle in degrees for random shear augmentation: (x,y)-->(x+y*tan(angle), y).'
+                             ' Augmentation angle will be taken uniformly at random in [0, angle>.')
+    parser.add_argument('--argoverse_augment_rotate_degrees', type=float, default=180.0,
+                        help='Angle in degrees for random rotation augmentation.'
+                             ' Augmentation angle will be taken uniformly at radnom in [-angle,angle>.')
+    parser.add_argument('--argoverse_augment_scale_min', type=float, default=0.6,
+                        help='Factor for minimum augmentation scaling.'
+                             ' Scaling factor is taken uniformly at random in [augment_scale_min, augment_scale_max].')
+    parser.add_argument('--argoverse_augment_scale_max', type=float, default=1.1,
+                        help='Factor for maximum augmentation scaling.'
+                             ' Scaling factor is taken uniformly at random in [augment_scale_min, augment_scale_max].')
+    parser.add_argument('--argoverse_augment_translate', type=float, default=5.4,
+                        help='Magnitude of random translations. Augmentation will make a random translation (dx, dy)'
+                             ' where dx and dy are taken independently and uniformly at random'
+                             ' in [-translate, translate].')
+    parser.add_argument('--argoverse_numericalize', action="store_true",
+                        help='Magnitude of random translations. Augmentation will make a random translation (dx, dy)'
+                             ' where dx and dy are taken independently and uniformly at random'
+                             ' in [-translate, translate].')
     return parser
 
 
@@ -180,7 +202,7 @@ class NeuralRasterizer(pl.LightningModule):
         if self.cx_loss_w > 0.0:
             vggcx_loss = self.vggcxlossfunc(dec_out, trg_img)
         else:
-            vggcx_loss = {'cx_loss': torch.tensor([-1.0])}
+            vggcx_loss = {'cx_loss': latte.new_tensor([-1.0])}
 
         loss = self.l1_loss_w * l1_loss + self.cx_loss_w * vggcx_loss['cx_loss']
 
@@ -249,7 +271,7 @@ class NeuralRasterizer(pl.LightningModule):
 def get_dataset(config):
     if config.dataset == "deepvecfont":
         seq_feature_dim = deepvecfont_dataset.SEQ_FEATURE_DIM
-        dm = DeepVecFontDataModule(
+        dm = deepvecfont_dataset.DeepVecFontDataModule(
             data_root=config.deepvecfont_data_root,
             max_seq_len=config.deepvecfont_max_seq_len,
             seq_feature_dim=config.deepvecfont_seq_feature_dim,
@@ -282,6 +304,13 @@ def get_dataset(config):
             train_workers=config.argoverse_train_workers,
             val_workers=config.argoverse_val_workers,
             test_workers=config.argoverse_test_workers,
+            augment_train=config.argoverse_augment_train,
+            augment_shear_degrees=config.argoverse_augment_shear_degrees,
+            augment_rotate_degrees=config.argoverse_augment_rotate_degrees,
+            augment_scale_min=config.argoverse_augment_scale_min,
+            augment_scale_max=config.argoverse_augment_scale_max,
+            augment_translate=config.argoverse_augment_translate,
+            numericalize=config.argoverse_numericalize,
         )
         seq_feature_dim = dm.train_ds.get_number_of_sequence_dimensions()
     else:
@@ -455,6 +484,7 @@ def main(config):
         "eps": config.eps,
         "weight_decay": config.weight_decay
     })
+
     neural_rasterizer = NeuralRasterizer(
         encoder=encoder,
         decoder=decoder,
@@ -469,7 +499,8 @@ def main(config):
     print(neural_rasterizer)
 
     if config.experiment_version is None:
-        config.experiment_version = f"{config.dataset[:2]}" \
+        config.experiment_version = f"s5_{config.dataset[:2]}" \
+                                    f"_{'aug' if config.argoverse_augment_train else ''}" \
                                     f"_{config.encoder_type}" \
                                     f"{'_bi' if config.lstm_bidirectional else ''}" \
                                     f"_h={config.lstm_hidden_size}" \
@@ -483,7 +514,7 @@ def main(config):
                                     f"_wd={config.weight_decay}" \
                                     f"_cx={config.cx_loss_w}" \
                                     f"_l1={config.l1_loss_w}" \
-            # f"_{datetime.now().strftime('%m.%d_%H.%M.%S')}"
+                                    f"_{datetime.now().strftime('%m.%d_%H.%M.%S')}"
 
     wandb_logger = WandbLogger(
         project=config.experiment_name,
@@ -493,22 +524,24 @@ def main(config):
     wandb_logger.watch(neural_rasterizer)
     tb_logger = TensorBoardLogger("logs", name=config.experiment_name, version=config.experiment_version, )
     csv_logger = CSVLogger("logs", name=config.experiment_name, version=config.experiment_version, )
+    loggers = [wandb_logger, tb_logger, csv_logger]
+    # loggers = []
 
     if torch.cuda.is_available() and config.gpus != 0:
-        strategy = 'dp' if config.cx_loss_w > 0.0 else DDPStrategy(find_unused_parameters=False),
+        # strategy = 'dp' if config.cx_loss_w > 0.0 else DDPStrategy(find_unused_parameters=False),
 
         trainer = Trainer(
             max_epochs=config.n_epochs,
             default_root_dir="logs",
-            logger=[wandb_logger, tb_logger, csv_logger],
+            logger=loggers,
             callbacks=[
-                EarlyStopping(monitor="Loss/val/loss", mode="min", patience=100, check_on_train_epoch_end=False),
+                EarlyStopping(monitor="Loss/val/loss", mode="min", patience=72, check_on_train_epoch_end=False),
                 ModelCheckpoint(monitor="Loss/val/loss", save_last=True),
             ],
             gpus=config.gpus,
             accelerator="gpu",
-            strategy=strategy,
-            # strategy='dp',
+            # strategy=strategy,
+            strategy='dp',
             # strategy=DDPStrategy(find_unused_parameters=False),
             # resume_from_checkpoint="logs/svglatte_svglatte__2022.04.09_16.04.39/3ireo6s9_0/checkpoints/epoch=161-step=211572.ckpt",
             # num_sanity_val_steps=0,
