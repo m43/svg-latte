@@ -10,6 +10,7 @@ CMDS_CLASSES = 4
 ARGS_DIM = 6
 SEQ_FEATURE_DIM = CMDS_CLASSES + ARGS_DIM
 
+
 class DeepVecFontDataset(Dataset):
     def __init__(
             self,

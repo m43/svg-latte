@@ -8,13 +8,13 @@ import pytorch_lightning as pl
 import torch
 import tqdm
 from PIL import Image
-from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 
 from deepsvg.difflib.tensor import SVGTensor
 from deepsvg.svglib.geom import Bbox
 from deepsvg.svglib.svg import SVGPath, SVG
 from deepsvg.svgtensor_dataset import SVGTensorDataset
+from svglatte.utils.util import pad_collate_fn
 
 CMDS_CLASSES = 7
 ARGS_DIM = 11
@@ -86,15 +86,6 @@ class DeepSVGDatasetNoCache(Dataset):
 
     def __len__(self):
         return len(self.svgtensor_dataset)
-
-    @staticmethod
-    def pad_collate_fn(batch, pad_value):
-        sequences, images, lengths = zip(*batch)
-        images = torch.cat(images).unsqueeze(1)
-        lengths = torch.tensor(lengths)
-        padded_sequences = torch.nn.utils.rnn.pad_sequence(sequences, padding_value=pad_value, batch_first=True)
-        # padded_sequences = torch.nn.utils.rnn.pad_sequence(sequences, padding_value=pad_value)
-        return padded_sequences, images, lengths
 
 
 class DeepSVGDataset(Dataset):
@@ -226,6 +217,10 @@ def load_dataset_splits(
         val_length = int(len(df) * val_ratio)
         test_length = int(len(df) * test_ratio)
 
+        # TODO
+        raise Exception("loading train_test_split from sklearn uses a lot of memory which"
+                        " could be a problem for torch dataloader workers")
+        from sklearn.model_selection import train_test_split
         train_val_df, test_df = train_test_split(df, test_size=test_length, random_state=seed)
         train_df, val_df = train_test_split(train_val_df, test_size=val_length, random_state=seed)
 
@@ -257,7 +252,7 @@ def load_dataset_splits(
     test_ds = DeepSVGDatasetNoCache(test_svgtensor_ds)
 
     def collate_fn(batch):
-        return DeepSVGDatasetNoCache.pad_collate_fn(batch, train_svgtensor_ds.PAD_VAL)
+        return pad_collate_fn(batch, train_svgtensor_ds.PAD_VAL)
 
     return train_ds, val_ds, test_ds, collate_fn
 

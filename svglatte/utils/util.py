@@ -1,6 +1,8 @@
 import pathlib
 from datetime import datetime
 
+import torch
+
 
 class Object(object):
     pass
@@ -42,7 +44,17 @@ class AttrDict(dict):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
+
 def ensure_dir(dirname):
     dirname = pathlib.Path(dirname)
     if not dirname.is_dir():
         dirname.mkdir(parents=True, exist_ok=False)
+
+
+def pad_collate_fn(batch, pad_value):
+    sequences, images, lengths = zip(*batch)
+    images = torch.cat(images).unsqueeze(1)
+    lengths = torch.tensor(lengths)
+    padded_sequences = torch.nn.utils.rnn.pad_sequence(sequences, padding_value=pad_value, batch_first=True)
+    # padded_sequences = torch.nn.utils.rnn.pad_sequence(sequences, padding_value=pad_value)
+    return padded_sequences, images, lengths

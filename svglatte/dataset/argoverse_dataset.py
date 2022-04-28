@@ -250,7 +250,7 @@ class ArgoverseDataModule(pl.LightningDataModule):
             self.test_ds = ArgoverseDataset(os.path.join(data_root, f"test"), augment=False, **kwargs)
 
         def collate_fn(batch):
-            return DeepSVGDatasetNoCache.pad_collate_fn(batch, pad_val)
+            return pad_collate_fn(batch, pad_val)
 
         self.collate_fn = collate_fn
 
@@ -259,28 +259,45 @@ class ArgoverseDataModule(pl.LightningDataModule):
         self.train_std = self.train_ds.get_sequences_std()
         self.train_std[:CMDS_CLASSES] = 1.
 
-    def train_dataloader(self):
-        return DataLoader(
+        self.train_dl = DataLoader(
             self.train_ds,
             batch_size=self.batch_size,
             collate_fn=self.collate_fn,
-            num_workers=self.train_workers
+            num_workers=self.train_workers,
+            pin_memory=False,
+            persistent_workers=True if self.train_workers > 0 else False,
         )
-
-    def val_dataloader(self):
-        return DataLoader(
+        self.val_dl = DataLoader(
             self.val_ds,
             batch_size=self.batch_size,
             collate_fn=self.collate_fn,
-            num_workers=self.val_workers
+            num_workers=self.val_workers,
+            pin_memory=False,
+            persistent_workers=True if self.val_workers > 0 else False,
         )
+
+        # Hack in order to fork the dataloader workers before large libraries/models
+        # get loaded into memory. Resolves a memory bottleneck with not being able
+        # to create a lot of workers (40-60) because of high virtual memory usage
+        # (+30GB per worker). Creating (and persisting) the workers before the
+        # virtual memory gets allocated seemed to remove the memory problem.
+        iter(self.train_dl)
+        iter(self.val_dl)
+
+    def train_dataloader(self):
+        return self.train_dl
+
+    def val_dataloader(self):
+        return self.val_dl
 
     def test_dataloader(self):
         return DataLoader(
             self.test_ds,
             batch_size=self.batch_size,
             collate_fn=self.collate_fn,
-            num_workers=self.test_workers
+            num_workers=self.test_workers,
+            pin_memory=False,
+            persistent_workers=True if self.test_workers > 0 else False,
         )
 
     def predict_dataloader(self):
@@ -288,7 +305,9 @@ class ArgoverseDataModule(pl.LightningDataModule):
             self.test_ds,
             batch_size=self.batch_size,
             collate_fn=self.collate_fn,
-            num_workers=self.test_workers
+            num_workers=self.test_workers,
+            pin_memory=False,
+            persistent_workers=True if self.test_workers > 0 else False,
         )
 
 
