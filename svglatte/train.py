@@ -1,24 +1,21 @@
 import argparse
-from collections import OrderedDict
 from datetime import datetime
 
 import pytorch_lightning as pl
 import torch
-import torchvision
 import wandb
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
 from pytorch_lightning.loggers import WandbLogger
-from torch import nn
-from torch.nn import functional as F
 
+from train import Decoder
+from train import NeuralRasterizer
 from svglatte.dataset import argoverse_dataset
 from svglatte.dataset import deepsvg_dataset
 from svglatte.dataset import deepvecfont_dataset
 from svglatte.models.custom_lstms import SequenceEncoder
 from svglatte.models.lstm_layernorm import LayerNormLSTMEncoder
-from svglatte.models.vgg_contextual_loss import VGGContextualLoss
 from svglatte.utils.util import AttrDict, nice_print, HORSE
 
 
@@ -45,9 +42,7 @@ def get_parser_main_model():
 
     # encoder
     parser.add_argument('--encoder_type', type=str, choices=[
-        'dvf_lstm',
-        'fc',
-        'lstm', 'fc_lstm_original', 'fc_lstm', 'residual_lstm', 'lstm+mha',
+        'dvf_lstm', 'lstm', 'fc_lstm_original', 'fc_lstm', 'residual_lstm', 'lstm+mha',
     ])
     parser.add_argument('--latte_ingredients', type=str, default='hc', choices=['h', 'c', 'hc'])
     # parser.add_argument('--lstm_input_size', type=int, default=512, help='lstm encoder input_size')
@@ -121,153 +116,6 @@ def get_parser_main_model():
     return parser
 
 
-# Adapted from:
-# https://github.com/yizhiwang96/deepvecfont/blob/3ba4adb0406f16a6f387c5e12dd12286c9c341e8/models/neural_rasterizer.py
-class NeuralRasterizer(pl.LightningModule):
-    def __init__(
-            self,
-            encoder: nn.Module,
-            decoder: nn.Module,
-            optimizer_args,
-            l1_loss_w,
-            cx_loss_w,
-            standardize_input_sequences,
-            dataset_name=None,
-            train_mean=None,
-            train_std=None,
-    ):
-        super(NeuralRasterizer, self).__init__()
-        self.optimizer_args = optimizer_args
-        self.dataset_name = dataset_name
-
-        # sequence encoder
-        self.encoder = encoder
-        self.standardize_input_sequences = standardize_input_sequences
-        self.train_mean = train_mean
-        self.train_std = train_std
-
-        # image decoder
-        self.decoder = decoder
-
-        # vgg contextual loss
-        self.l1_loss_w = l1_loss_w
-        self.cx_loss_w = cx_loss_w
-        if self.cx_loss_w > 0.0:
-            self.vggcxlossfunc = VGGContextualLoss()
-
-    # TODO what does this method do
-    # def init_state_input(self, sampled_bottleneck):
-    #     init_state_hidden = []
-    #     init_state_cell = []
-    #     for i in range(self.num_hidden_layers):
-    #         unbottleneck = self.unbottlenecks[i](sampled_bottleneck)
-    #         (h0, c0) = unbottleneck[:, :self.unbottleneck_dim // 2], unbottleneck[:, self.unbottleneck_dim // 2:]
-    #         init_state_hidden.append(h0.unsqueeze(0))
-    #         init_state_cell.append(c0.unsqueeze(0))
-    #     init_state_hidden = torch.cat(init_state_hidden, dim=0)
-    #     init_state_cell = torch.cat(init_state_cell, dim=0)
-    #     init_state = {}
-    #     init_state['hidden'] = init_state_hidden
-    #     init_state['cell'] = init_state_cell
-    #     return init_state
-
-    def forward(self, trg_seq_padded, lengths):
-        latte = self.encoder(trg_seq_padded, lengths)
-        return latte
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
-            self.parameters(),
-            lr=self.optimizer_args.lr, betas=(self.optimizer_args.beta1, self.optimizer_args.beta2),
-            eps=self.optimizer_args.eps, weight_decay=self.optimizer_args.weight_decay
-        )
-        return optimizer
-
-    def training_step(self, train_batch, batch_idx, subset="train"):
-        trg_seq_padded, trg_img, lengths = train_batch
-        if self.standardize_input_sequences:
-            trg_seq_padded = (trg_seq_padded - self.train_mean.to(self.device)) / self.train_std.to(self.device)
-
-        # get latent
-        latte = self.forward(trg_seq_padded, lengths.cpu())
-
-        # decode to get the raster
-        dec_input = latte
-        dec_input = dec_input.unsqueeze(-1).unsqueeze(-1)
-        dec_out = self.decoder(dec_input)
-
-        l1_loss = F.l1_loss(dec_out, trg_img)
-
-        # compute losses
-        if self.cx_loss_w > 0.0:
-            vggcx_loss = self.vggcxlossfunc(dec_out, trg_img)
-        else:
-            vggcx_loss = {'cx_loss': latte.new_tensor([-1.0])}
-
-        loss = self.l1_loss_w * l1_loss + self.cx_loss_w * vggcx_loss['cx_loss']
-
-        # results
-        results = {
-            "loss": loss,
-            "gen_imgs": dec_out,
-            "img_l1_loss": l1_loss,
-            "img_vggcx_loss": vggcx_loss["cx_loss"],
-        }
-
-        # logging
-        self.log(f'Loss/{subset}/loss', loss,
-                 on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
-        self.log(f'Loss/{subset}/img_l1_loss', self.l1_loss_w * l1_loss,
-                 on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
-        self.log(f'Loss/{subset}/img_perceptual_loss', self.cx_loss_w * vggcx_loss['cx_loss'],
-                 on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
-
-        if batch_idx % 400 == 0:
-            zipped = torch.concat(list(map(torch.cat, zip(dec_out[:32, None], trg_img[:32, None]))))
-            zipped_image = torchvision.utils.make_grid(zipped)
-            for logger in self.loggers:
-                if type(logger) == WandbLogger:
-                    logger.log_image(
-                        f'Images/{subset}/{batch_idx}-output_img',
-                        [zipped_image],
-                        caption={0: f"loss:{loss} img_l1_loss:{l1_loss} img_vggcx_loss:{vggcx_loss['cx_loss']}"})
-                # elif type(logger) == TensorBoardLogger:
-                #     logger.experiment.add_image(
-                #         f'Images/{subset}/{batch_idx}-output_img',
-                #         zipped_image,
-                #         self.current_epoch
-                #     )
-
-            if self.global_step == 0 and self.dataset_name == "deepvecfont":
-                for i, seq in enumerate(trg_seq_padded[:32]):
-                    seq = (seq * self.train_std.to(self.device) + self.train_mean.to(self.device)).cpu().numpy()
-                    from svglatte.dataset.deepvecfont_svg_utils import render
-                    tgt_svg = render(seq)
-                    for logger in self.loggers:
-                        if type(logger) == WandbLogger:
-                            logger.experiment.log({f"Svg/{subset}/{batch_idx}-{i}-target_svg": wandb.Html(tgt_svg)})
-                        elif type(logger) == TensorBoardLogger:
-                            logger.experiment.add_text(
-                                f"Svg/{subset}/{batch_idx}-{i}-target_svg",
-                                tgt_svg,
-                                global_step=self.current_epoch
-                            )
-
-        # return results
-        return results
-
-    def validation_step(self, val_batch, batch_idx):
-        results = self.training_step(val_batch, batch_idx, subset="val")
-        return results
-
-    def test_step(self, test_batch, batch_idx):
-        results = self.training_step(test_batch, batch_idx, subset="test")
-        return results
-
-    def on_epoch_start(self):
-        print('\n')
-
-
 def get_dataset(config):
     if config.dataset == "deepvecfont":
         seq_feature_dim = deepvecfont_dataset.SEQ_FEATURE_DIM
@@ -318,37 +166,6 @@ def get_dataset(config):
     return dm, seq_feature_dim
 
 
-class FCEncoder(nn.Module):
-
-    def __init__(
-            self,
-            neurons_per_layer,
-            activation_module,
-            use_batchnorm=True,
-            **kwargs
-    ):
-        super(FCEncoder, self).__init__()
-        self.neurons_per_layer = neurons_per_layer
-
-        layers = OrderedDict()
-        for i in range(1, len(self.neurons_per_layer)):
-            layers[f"ll_{i}"] = nn.Linear(
-                in_features=self.neurons_per_layer[i - 1],
-                out_features=self.neurons_per_layer[i],
-                bias=not use_batchnorm
-            )
-
-            if i != len(self.dims) - 1:
-                layers[f"bn_{i}"] = nn.BatchNorm1d(self.neurons_per_layer[i])
-                layers[f"a_{i}"] = activation_module()
-
-        self.seq = nn.Sequential(layers)
-
-    def forward(self, input_sequences, _):
-        # TODO how to fix the input length?
-        return self.seq(input_sequences.reshape(input_sequences.shape[0], -1))
-
-
 def get_encoder(config):
     # TODO refactor to use hydra or subparsers
     encoder_args = AttrDict()
@@ -370,70 +187,10 @@ def get_encoder(config):
     if config.encoder_type == "dvf_lstm":
         encoder_args.unpack_output = config.dvf_lstm_unpack_output
         encoder = LayerNormLSTMEncoder(**encoder_args)
-    elif config.encoder_type == "fc":
-        raise NotImplementedError(
-            "The FC baseline is not yet implemnted. Need to figure out how to have fixed input size.")
-        encoder = FCEncoder(**encoder_args)
     else:
         encoder = SequenceEncoder(**encoder_args)
 
     return encoder
-
-
-class Decoder(nn.Module):
-
-    def __init__(
-            self,
-            in_channels,
-            out_channels,
-            ngf=16,  # 64
-            norm_layer=nn.LayerNorm,
-            kernel_size_list=(3, 3, 5, 5, 5, 5),  # 5
-            stride_list=(2, 2, 2, 2, 2, 2),  # 3
-            padding_list=(1, 1, 2, 2, 2, 2),
-            output_padding_list=(1, 1, 1, 1, 1, 1),
-    ):
-        super(Decoder, self).__init__()
-        decoder = []
-        assert len(kernel_size_list) == len(stride_list) == len(padding_list) == len(output_padding_list)
-        self.image_sizes = []
-        image_size = 1
-        for k, s, p, op in zip(kernel_size_list, stride_list, padding_list, output_padding_list):
-            image_size = (image_size - 1) * s - 2 * p + 1 * (k - 1) + op + 1
-            self.image_sizes.append(image_size)
-        n_upsampling = len(kernel_size_list)
-        mult = 2 ** n_upsampling
-
-        conv = nn.ConvTranspose2d(
-            in_channels=in_channels,
-            out_channels=int(ngf * mult / 2),
-            kernel_size=kernel_size_list[0],
-            stride=stride_list[0],
-            padding=padding_list[0],
-            output_padding=output_padding_list[0]
-        )
-        decoder += [conv,
-                    norm_layer([int(ngf * mult / 2), self.image_sizes[0], self.image_sizes[0]]),
-                    nn.ReLU(True)]
-        for i in range(1, n_upsampling):
-            mult = 2 ** (n_upsampling - i)
-            conv = nn.ConvTranspose2d(
-                in_channels=ngf * mult,
-                out_channels=int(ngf * mult / 2),
-                kernel_size=kernel_size_list[i],
-                stride=stride_list[i],
-                padding=padding_list[i],
-                output_padding=output_padding_list[i]
-            )
-            decoder += [conv,
-                        norm_layer([int(ngf * mult / 2), self.image_sizes[i], self.image_sizes[i]]),
-                        nn.ReLU(True)]
-        decoder += [nn.Conv2d(ngf, out_channels, kernel_size=7, padding=7 // 2)]
-        decoder += [nn.Sigmoid()]
-        self.decode = nn.Sequential(*decoder)
-
-    def forward(self, latte):
-        return self.decode(latte)
 
 
 def main(config):
