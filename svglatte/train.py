@@ -5,17 +5,17 @@ import pytorch_lightning as pl
 import torch
 import wandb
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
 from pytorch_lightning.loggers import WandbLogger
 
-from train import Decoder
-from train import NeuralRasterizer
 from svglatte.dataset import argoverse_dataset
 from svglatte.dataset import deepsvg_dataset
 from svglatte.dataset import deepvecfont_dataset
 from svglatte.models.custom_lstms import SequenceEncoder
 from svglatte.models.lstm_layernorm import LayerNormLSTMEncoder
+from svglatte.models.neural_rasterizer.cnn_decoder import Decoder
+from svglatte.models.neural_rasterizer.neural_rasterizer import NeuralRasterizer
 from svglatte.utils.util import AttrDict, nice_print, HORSE
 
 
@@ -24,17 +24,22 @@ def get_parser_main_model():
 
     # experiment
     parser.add_argument('--experiment_name', type=str, default='svglatte')
+    parser.add_argument('--checkpoint_path', type=str, default=None, help="Checkpoint used to restore training state")
     parser.add_argument('--experiment_version', type=str, default=None)
     parser.add_argument('--n_epochs', type=int, default=2000, help='number of epochs')
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size')
     parser.add_argument('--gpus', type=int, default=-1)
+    parser.add_argument('--early_stopping_patience', type=int, default=72)
 
     # optimizer
-    parser.add_argument('--lr', type=float, default=0.0002, help='learning rate')
+    # parser.add_argument('--lr', type=float, default=0.0002, help='learning rate')
+    parser.add_argument('--lr', type=float, default=0.00042, help='learning rate')  # 0.0004365158322401656
+    parser.add_argument('--auto_lr_find', action='store_true', help='Use the auto lr finder from Pytorch Lightning')
     parser.add_argument('--beta1', type=float, default=0.9, help='beta1 of Adam optimizer')
     parser.add_argument('--beta2', type=float, default=0.999, help='beta2 of Adam optimizer')
     parser.add_argument('--eps', type=float, default=1e-8, help='Adam epsilon')
     parser.add_argument('--weight_decay', type=float, default=0.0, help='weight decay')
+    parser.add_argument('--gradient_clip_val', type=float, default=None, help='gradient clipping value')
 
     # loss weight
     parser.add_argument('--cx_loss_w', type=float, default=0.1, help='the weight of contextual loss')
@@ -45,7 +50,6 @@ def get_parser_main_model():
         'dvf_lstm', 'lstm', 'fc_lstm_original', 'fc_lstm', 'residual_lstm', 'lstm+mha',
     ])
     parser.add_argument('--latte_ingredients', type=str, default='hc', choices=['h', 'c', 'hc'])
-    # parser.add_argument('--lstm_input_size', type=int, default=512, help='lstm encoder input_size')
     parser.add_argument('--lstm_hidden_size', type=int, default=512, help='lstm encoder hidden_size')
     parser.add_argument('--lstm_num_layers', type=int, default=4, help='svg encoder number of hidden layers')
     parser.add_argument('--lstm_dropout', type=float, default=0.0, help='lstm dropout')
@@ -57,6 +61,9 @@ def get_parser_main_model():
     parser.add_argument('--mha_num_heads', type=int, default=8, help='')
     parser.add_argument('--mha_dropout', type=float, default=0.0, help='')
     parser.add_argument('--dvf_lstm_unpack_output', action='store_true', help='')
+
+    # decoder
+    parser.add_argument('--decoder_n_filters_in_last_conv_layer', type=int, default=16, help='')
 
     # datasets
     parser.add_argument('--cache_to_disk', action='store_false', help='')
@@ -91,21 +98,24 @@ def get_parser_main_model():
     parser.add_argument('--argoverse_train_workers', type=int, default=4, help='')
     parser.add_argument('--argoverse_val_workers', type=int, default=4, help='')
     parser.add_argument('--argoverse_test_workers', type=int, default=0, help='')
-    parser.add_argument('--argoverse_augment_train', action='store_true',
-                        help='Add augmentations to train dataset.')
-    parser.add_argument('--argoverse_augment_shear_degrees', type=float, default=20.0,
+    parser.add_argument('--argoverse_zoom_preprocess_factor', type=float, default=1.0,
+                        help='Factor for scaling during preprocessing. Useful when all SVGs must be zoomed out.')
+    parser.add_argument('--argoverse_augment_train', action='store_true', help='Add augmentations to train dataset.')
+    parser.add_argument('--argoverse_augment_val', action='store_true', help='Add augmentations to val dataset.')
+    parser.add_argument('--argoverse_augment_test', action='store_true', help='Add augmentations to test dataset.')
+    parser.add_argument('--argoverse_augment_shear_degrees', type=float, default=0.0,
                         help='Angle in degrees for random shear augmentation: (x,y)-->(x+y*tan(angle), y).'
                              ' Augmentation angle will be taken uniformly at random in [0, angle>.')
     parser.add_argument('--argoverse_augment_rotate_degrees', type=float, default=180.0,
                         help='Angle in degrees for random rotation augmentation.'
                              ' Augmentation angle will be taken uniformly at radnom in [-angle,angle>.')
-    parser.add_argument('--argoverse_augment_scale_min', type=float, default=0.6,
+    parser.add_argument('--argoverse_augment_scale_min', type=float, default=1.0,
                         help='Factor for minimum augmentation scaling.'
                              ' Scaling factor is taken uniformly at random in [augment_scale_min, augment_scale_max].')
-    parser.add_argument('--argoverse_augment_scale_max', type=float, default=1.1,
+    parser.add_argument('--argoverse_augment_scale_max', type=float, default=1.0,
                         help='Factor for maximum augmentation scaling.'
                              ' Scaling factor is taken uniformly at random in [augment_scale_min, augment_scale_max].')
-    parser.add_argument('--argoverse_augment_translate', type=float, default=5.4,
+    parser.add_argument('--argoverse_augment_translate', type=float, default=0.0,
                         help='Magnitude of random translations. Augmentation will make a random translation (dx, dy)'
                              ' where dx and dy are taken independently and uniformly at random'
                              ' in [-translate, translate].')
@@ -152,7 +162,10 @@ def get_dataset(config):
             train_workers=config.argoverse_train_workers,
             val_workers=config.argoverse_val_workers,
             test_workers=config.argoverse_test_workers,
+            zoom_preprocess_factor=config.argoverse_zoom_preprocess_factor,
             augment_train=config.argoverse_augment_train,
+            augment_val=config.argoverse_augment_val,
+            augment_test=config.argoverse_augment_test,
             augment_shear_degrees=config.argoverse_augment_shear_degrees,
             augment_rotate_degrees=config.argoverse_augment_rotate_degrees,
             augment_scale_min=config.argoverse_augment_scale_min,
@@ -203,7 +216,18 @@ def main(config):
     if config.argoverse_rendered_images_width == 64 and config.argoverse_rendered_images_height == 64:
         decoder = Decoder(
             in_channels=encoder.output_size,
-            out_channels=1
+            out_channels=1,
+            n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,
+        )
+    elif config.argoverse_rendered_images_width == 128 and config.argoverse_rendered_images_height == 128:
+        decoder = Decoder(
+            in_channels=encoder.output_size,
+            out_channels=1,
+            kernel_size_list=(3, 3, 3, 5, 5, 5, 5),
+            stride_list=(2, 2, 2, 2, 2, 2, 2),
+            padding_list=(1, 1, 1, 2, 2, 2, 2),
+            output_padding_list=(1, 1, 1, 1, 1, 1, 1),
+            n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,
         )
     elif config.argoverse_rendered_images_width == 200 and config.argoverse_rendered_images_height == 200:
         decoder = Decoder(
@@ -213,7 +237,7 @@ def main(config):
             stride_list=(2, 2, 2, 2, 2, 2, 2, 2),
             padding_list=(1, 1, 1, 2, 2, 2, 2, 2),
             output_padding_list=(1, 1, 1, 1, 1, 1, 1, 1),
-            ngf=4,  # 64
+            n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,  # 64
             # norm_layer=nn.LayerNorm,
         )
     elif config.argoverse_rendered_images_width == 512 and config.argoverse_rendered_images_height == 512:
@@ -224,7 +248,7 @@ def main(config):
             stride_list=(2, 2, 2, 2, 2, 2, 2, 2, 2),
             padding_list=(1, 1, 1, 1, 1, 2, 2, 2, 2),
             output_padding_list=(1, 1, 1, 1, 1, 1, 1, 1, 1),
-            ngf=4,  # 64
+            n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,  # 64
             # norm_layer=nn.LayerNorm,
         )
     else:

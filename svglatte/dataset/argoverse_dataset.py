@@ -1,6 +1,7 @@
 import io
 import os
 import random
+from concurrent import futures
 from datetime import datetime
 
 import cairosvg
@@ -11,11 +12,13 @@ import torchvision
 from PIL import Image
 from matplotlib import pyplot as plt
 from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
 
+from deepsvg.dataset.preprocess import main
 from deepsvg.difflib.tensor import SVGTensor
 from deepsvg.svglib.geom import Bbox, Angle, Point
 from deepsvg.svglib.svg import SVG
-from svglatte.utils.util import pad_collate_fn
+from svglatte.utils.util import pad_collate_fn, Object, ensure_dir
 
 CMDS_CLASSES = 7
 ARGS_DIM = 13  # 11 + 2
@@ -32,6 +35,7 @@ class ArgoverseDataset(Dataset):
             render_on_the_fly=True,
             remove_redundant_features=True,
             numericalize=False,
+            zoom_preprocess_factor=1.0,  # zoom factor independent of augmentations
             augment=True,
             augment_shear_degrees=20,
             augment_rotate_degrees=180,
@@ -43,6 +47,7 @@ class ArgoverseDataset(Dataset):
         self.rendered_images_width = rendered_images_width
         self.rendered_images_height = rendered_images_height
 
+        self.zoom_preprocess_factor = zoom_preprocess_factor
         self.remove_redundant_features = remove_redundant_features
         self.numericalize = numericalize
 
@@ -83,8 +88,10 @@ class ArgoverseDataset(Dataset):
             # - 1 is line
             # - 4 is eos
             # - 5 is sos
-            # - 16 is x coordinate
-            # - 17 is y coordinate
+            # - 12 is the start point x coordinate of the line
+            # - 14 is the start point y coordinate of the line
+            # - 16+2=18 is the end point x coordinate of the line
+            # - 17+2=19 is the end point y coordinate of the line
             self.SEQUENCE_FEATURE_DIMENSTIONS = [0, 1, 4, 5, 12, 13, 16 + 2, 17 + 2]
             # Sanity check:
             # torch.cat([s.sum(0)[None, :] for s in self.sequences]).sum(0)
@@ -192,27 +199,27 @@ class ArgoverseDataset(Dataset):
         return self._seq_std[self.SEQUENCE_FEATURE_DIMENSTIONS]
 
     def _augment(self, svg):
-        shear_angle = self.augment_shear_degrees * random.random()
-        svg.shear(Angle(shear_angle))
+        if self.augment_shear_degrees != 0.0:
+            shear_angle = self.augment_shear_degrees * random.random()
+            svg.shear(Angle(shear_angle))
 
-        rotation_angle = self.augment_rotate_degrees * (random.random() - 0.5) * 2
-        svg.rotate(Angle(rotation_angle))
+        if self.augment_rotate_degrees != 0.0:
+            rotation_angle = self.augment_rotate_degrees * (random.random() - 0.5) * 2
+            svg.rotate(Angle(rotation_angle))
 
         zoom_factor = (self.augment_scale_max - self.augment_scale_min) * random.random() + self.augment_scale_min
         svg.zoom(zoom_factor)
 
-        dx = self.augment_translate * (random.random() - 0.5) * 2
-        dy = self.augment_translate * (random.random() - 0.5) * 2
-        svg.translate(Point(dx, dy))
+        if self.augment_translate != 0.0:
+            dx = self.augment_translate * (random.random() - 0.5) * 2
+            dy = self.augment_translate * (random.random() - 0.5) * 2
+            svg.translate(Point(dx, dy))
 
         return svg
 
-    def _simplify(seq, svg, normalize=True):
-        svg.canonicalize(normalize=normalize)
-        svg = svg.simplify_heuristic()
-        return svg.normalize()
-
     def _preprocess(self, svg):
+        if self.zoom_preprocess_factor != 1.0:
+            svg.zoom(self.zoom_preprocess_factor)
         if self.augment:
             self._augment(svg)
         if self.numericalize:
@@ -231,6 +238,8 @@ class ArgoverseDataModule(pl.LightningDataModule):
             val_workers=4,
             test_workers=0,
             augment_train=True,
+            augment_val=False,
+            augment_test=False,
             **kwargs
     ):
         super(ArgoverseDataModule, self).__init__()
@@ -246,8 +255,8 @@ class ArgoverseDataModule(pl.LightningDataModule):
             self.train_ds = self.test_ds = self.val_ds
         else:
             self.train_ds = ArgoverseDataset(os.path.join(data_root, f"train"), augment=augment_train, **kwargs)
-            self.val_ds = ArgoverseDataset(os.path.join(data_root, f"val"), augment=False, **kwargs)
-            self.test_ds = ArgoverseDataset(os.path.join(data_root, f"test"), augment=False, **kwargs)
+            self.val_ds = ArgoverseDataset(os.path.join(data_root, f"val"), augment=augment_val, **kwargs)
+            self.test_ds = ArgoverseDataset(os.path.join(data_root, f"test"), augment=augment_test, **kwargs)
 
         def collate_fn(batch):
             return pad_collate_fn(batch, pad_val)

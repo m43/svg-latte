@@ -7,7 +7,7 @@ class Decoder(nn.Module):
             self,
             in_channels,
             out_channels,
-            ngf=16,  # 64
+            n_filters_in_last_conv_layer=16,  # 64
             norm_layer=nn.LayerNorm,
             kernel_size_list=(3, 3, 5, 5, 5, 5),  # 5
             stride_list=(2, 2, 2, 2, 2, 2),  # 3
@@ -27,29 +27,29 @@ class Decoder(nn.Module):
 
         conv = nn.ConvTranspose2d(
             in_channels=in_channels,
-            out_channels=int(ngf * mult / 2),
+            out_channels=int(n_filters_in_last_conv_layer * mult / 2),
             kernel_size=kernel_size_list[0],
             stride=stride_list[0],
             padding=padding_list[0],
             output_padding=output_padding_list[0]
         )
         decoder += [conv,
-                    norm_layer([int(ngf * mult / 2), self.image_sizes[0], self.image_sizes[0]]),
+                    norm_layer([int(n_filters_in_last_conv_layer * mult / 2), self.image_sizes[0], self.image_sizes[0]]),
                     nn.ReLU(True)]
         for i in range(1, n_upsampling):
             mult = 2 ** (n_upsampling - i)
             conv = nn.ConvTranspose2d(
-                in_channels=ngf * mult,
-                out_channels=int(ngf * mult / 2),
+                in_channels=n_filters_in_last_conv_layer * mult,
+                out_channels=int(n_filters_in_last_conv_layer * mult / 2),
                 kernel_size=kernel_size_list[i],
                 stride=stride_list[i],
                 padding=padding_list[i],
                 output_padding=output_padding_list[i]
             )
             decoder += [conv,
-                        norm_layer([int(ngf * mult / 2), self.image_sizes[i], self.image_sizes[i]]),
+                        norm_layer([int(n_filters_in_last_conv_layer * mult / 2), self.image_sizes[i], self.image_sizes[i]]),
                         nn.ReLU(True)]
-        decoder += [nn.Conv2d(ngf, out_channels, kernel_size=7, padding=7 // 2)]
+        decoder += [nn.Conv2d(n_filters_in_last_conv_layer, out_channels, kernel_size=7, padding=7 // 2)]
         decoder += [nn.Sigmoid()]
         self.decode = nn.Sequential(*decoder)
 
