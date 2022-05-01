@@ -1,12 +1,16 @@
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torchvision
 import wandb
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
+from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from torch import nn
 from torch.nn import functional as F
+from torch.optim.lr_scheduler import StepLR
 
-from models.vgg_contextual_loss import VGGContextualLoss
+from deepsvg.schedulers.warmup import GradualWarmupScheduler
+from svglatte.models.vgg_contextual_loss import VGGContextualLoss
 
 
 class NeuralRasterizer(pl.LightningModule):
@@ -24,6 +28,8 @@ class NeuralRasterizer(pl.LightningModule):
     ):
         super(NeuralRasterizer, self).__init__()
         self.optimizer_args = optimizer_args
+        self.lr = self.optimizer_args.lr
+        del self.optimizer_args.lr
         self.dataset_name = dataset_name
 
         # sequence encoder
@@ -64,10 +70,20 @@ class NeuralRasterizer(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             self.parameters(),
-            lr=self.optimizer_args.lr, betas=(self.optimizer_args.beta1, self.optimizer_args.beta2),
+            lr=self.lr, betas=(self.optimizer_args.beta1, self.optimizer_args.beta2),
             eps=self.optimizer_args.eps, weight_decay=self.optimizer_args.weight_decay
         )
-        return optimizer
+
+        scheduler_warmup = {
+            'scheduler': GradualWarmupScheduler(
+                optimizer,
+                multiplier=1.0,
+                total_epoch=720, ),
+            'interval': 'step'  # called after each training step
+        }
+        scheduler_lr = StepLR(optimizer, step_size=30, gamma=0.9)
+
+        return [optimizer], [scheduler_warmup, scheduler_lr]
 
     def training_step(self, train_batch, batch_idx, subset="train"):
         trg_seq_padded, trg_img, lengths = train_batch

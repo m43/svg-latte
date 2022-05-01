@@ -284,6 +284,18 @@ def main(config):
     loggers = [wandb_logger, tb_logger, csv_logger]
     # loggers = []
 
+    early_stopping_callback = EarlyStopping(
+        monitor="Loss/val/loss", mode="min",
+        patience=config.early_stopping_patience,
+        check_on_train_epoch_end=False
+    )
+    model_checkpoint_callback = ModelCheckpoint(monitor="Loss/val/loss", save_last=True, verbose=True, )
+    learning_rate_monitor_callback = LearningRateMonitor(logging_interval='step')
+    callbacks = [
+        early_stopping_callback,
+        model_checkpoint_callback,
+        learning_rate_monitor_callback]
+
     if torch.cuda.is_available() and config.gpus != 0:
         # strategy = 'dp' if config.cx_loss_w > 0.0 else DDPStrategy(find_unused_parameters=False),
 
@@ -291,10 +303,9 @@ def main(config):
             max_epochs=config.n_epochs,
             default_root_dir="logs",
             logger=loggers,
-            callbacks=[
-                EarlyStopping(monitor="Loss/val/loss", mode="min", patience=72, check_on_train_epoch_end=False),
-                ModelCheckpoint(monitor="Loss/val/loss", save_last=True),
-            ],
+            callbacks=callbacks,
+            gradient_clip_val=config.gradient_clip_val,
+            auto_lr_find=config.auto_lr_find,
             gpus=config.gpus,
             accelerator="gpu",
             # strategy=strategy,
@@ -313,12 +324,13 @@ def main(config):
             max_epochs=config.n_epochs,
             default_root_dir="logs",
             logger=[wandb_logger, tb_logger, csv_logger],
-            callbacks=[
-                EarlyStopping(monitor="Loss/val/loss", mode="min", patience=100, check_on_train_epoch_end=False),
-                ModelCheckpoint(monitor="Loss/val/loss", save_last=True),
-            ],
+            callbacks=callbacks,
         )
-    trainer.fit(neural_rasterizer, dm)
+    if config.auto_lr_find:
+        trainer.tune(neural_rasterizer, dm)
+        print("Finished tuning")
+    trainer.fit(neural_rasterizer, dm, ckpt_path=config.checkpoint_path)
+    print(f"best_model_path={model_checkpoint_callback.best_model_path}")
     trainer.test(neural_rasterizer, dm, ckpt_path='best')
 
 
