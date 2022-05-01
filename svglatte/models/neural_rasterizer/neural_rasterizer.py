@@ -98,7 +98,8 @@ class NeuralRasterizer(pl.LightningModule):
         dec_input = dec_input.unsqueeze(-1).unsqueeze(-1)
         dec_out = self.decoder(dec_input)
 
-        l1_loss = F.l1_loss(dec_out, trg_img)
+        l1_loss_elementwise = F.l1_loss(dec_out, trg_img, reduction="none").mean(dim=(1, 2, 3))
+        mean_l1_loss = l1_loss_elementwise.mean()
 
         # compute losses
         if self.cx_loss_w > 0.0:
@@ -106,33 +107,46 @@ class NeuralRasterizer(pl.LightningModule):
         else:
             vggcx_loss = {'cx_loss': latte.new_tensor([-1.0])}
 
-        loss = self.l1_loss_w * l1_loss + self.cx_loss_w * vggcx_loss['cx_loss']
+        loss = self.l1_loss_w * mean_l1_loss + self.cx_loss_w * vggcx_loss['cx_loss']
 
         # results
         results = {
             "loss": loss,
             "gen_imgs": dec_out,
-            "img_l1_loss": l1_loss,
+            "img_l1_loss": mean_l1_loss,
             "img_vggcx_loss": vggcx_loss["cx_loss"],
+            "img_l1_loss_elementwise": l1_loss_elementwise
         }
 
         # logging
         self.log(f'Loss/{subset}/loss', loss,
                  on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
-        self.log(f'Loss/{subset}/img_l1_loss', self.l1_loss_w * l1_loss,
+        self.log(f'Loss/{subset}/img_l1_loss', self.l1_loss_w * mean_l1_loss,
                  on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
         self.log(f'Loss/{subset}/img_perceptual_loss', self.cx_loss_w * vggcx_loss['cx_loss'],
                  on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
 
         if batch_idx % 400 == 0:
-            zipped = torch.concat(list(map(torch.cat, zip(dec_out[:32, None], trg_img[:32, None]))))
-            zipped_image = torchvision.utils.make_grid(zipped)
+            n_images_in_grid = 8
+            n_columns = int((n_images_in_grid * 2) ** 0.5)
+            zipped = torch.concat(list(map(torch.cat,
+                                           zip(dec_out[:n_images_in_grid, None], trg_img[:n_images_in_grid, None]))))
+            zipped_image = torchvision.utils.make_grid(zipped, nrow=n_columns)
+            l1_loss_elementwise_str = ' '.join(
+                [f"{i:02d}:{l:.3f}" for i, l in enumerate(l1_loss_elementwise[:n_images_in_grid])])
+            caption = f"loss:{loss.item():.3f}" \
+                      f"\nimg_l1_loss:{mean_l1_loss.item():.3f}" \
+                      f"\nimg_vggcx_loss:{vggcx_loss['cx_loss'].item():.3f}" \
+                      f"\nl1_loss_elementwise:{l1_loss_elementwise_str}"
+
             for logger in self.loggers:
                 if type(logger) == WandbLogger:
                     logger.log_image(
-                        f'Images/{subset}/{batch_idx}-output_img',
-                        [zipped_image],
-                        caption={0: f"loss:{loss} img_l1_loss:{l1_loss} img_vggcx_loss:{vggcx_loss['cx_loss']}"})
+                        key=f'Images/{subset}/{batch_idx}-output_img',
+                        images=[zipped_image],
+                        caption={0: caption},
+                        step=self.current_epoch,
+                    )
                 # elif type(logger) == TensorBoardLogger:
                 #     logger.experiment.add_image(
                 #         f'Images/{subset}/{batch_idx}-output_img',
@@ -142,7 +156,8 @@ class NeuralRasterizer(pl.LightningModule):
 
             if self.global_step == 0 and self.dataset_name == "deepvecfont":
                 for i, seq in enumerate(trg_seq_padded[:32]):
-                    seq = (seq * self.train_std.to(self.device) + self.train_mean.to(self.device)).cpu().numpy()
+                    if self.standardize_input_sequences:
+                        seq = (seq * self.train_std.to(self.device) + self.train_mean.to(self.device)).cpu().numpy()
                     from svglatte.dataset.deepvecfont_svg_utils import render
                     tgt_svg = render(seq)
                     for logger in self.loggers:
@@ -165,6 +180,29 @@ class NeuralRasterizer(pl.LightningModule):
     def test_step(self, test_batch, batch_idx):
         results = self.training_step(test_batch, batch_idx, subset="test")
         return results
+
+    def training_epoch_end(self, outputs: EPOCH_OUTPUT, subset="train") -> None:
+        l1_elementwise_losses = torch.cat([r["img_l1_loss_elementwise"] for r in outputs]).detach().cpu().numpy()
+        l1_elementwise_losses_df = pd.DataFrame(l1_elementwise_losses).describe().transpose()
+        print(l1_elementwise_losses_df)
+
+        for df_key in l1_elementwise_losses_df.keys():
+            self.log(f'Loss/{subset}/verbose/l1_loss_{df_key}', float(l1_elementwise_losses_df[df_key]),
+                     on_step=False, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
+
+        for logger in self.loggers:
+            if type(logger) == WandbLogger:
+                logger.experiment.log(
+                    {
+                        f'Loss/{subset}/verbose/l1_loss_histogram': wandb.Histogram(l1_elementwise_losses)
+                    }
+                )
+
+    def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        self.training_epoch_end(outputs, "val")
+
+    def test_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        self.training_epoch_end(outputs, "test")
 
     def on_epoch_start(self):
         print('\n')
