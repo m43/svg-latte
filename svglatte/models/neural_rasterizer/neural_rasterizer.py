@@ -1,15 +1,18 @@
+from typing import Any, Callable, Optional, Union
+
 import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torchvision
 import wandb
+from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from torch import nn
 from torch.nn import functional as F
 from torch.optim.lr_scheduler import StepLR
+from torch.optim.optimizer import Optimizer
 
-from deepsvg.schedulers.warmup import GradualWarmupScheduler
 from svglatte.models.vgg_contextual_loss import VGGContextualLoss
 
 
@@ -71,19 +74,38 @@ class NeuralRasterizer(pl.LightningModule):
         optimizer = torch.optim.Adam(
             self.parameters(),
             lr=self.lr, betas=(self.optimizer_args.beta1, self.optimizer_args.beta2),
-            eps=self.optimizer_args.eps, weight_decay=self.optimizer_args.weight_decay
+            eps=self.optimizer_args.eps, weight_decay=self.optimizer_args.weight_decay,
         )
 
-        scheduler_warmup = {
-            'scheduler': GradualWarmupScheduler(
+        scheduler_lr = {
+            'scheduler': StepLR(
                 optimizer,
-                multiplier=1.0,
-                total_epoch=720, ),
-            'interval': 'step'  # called after each training step
+                step_size=self.optimizer_args.scheduler_decay_epochs,
+                gamma=self.optimizer_args.scheduler_decay_gamma,
+            ),
+            'interval': 'epoch'
         }
-        scheduler_lr = StepLR(optimizer, step_size=30, gamma=0.9)
+        return [optimizer], [scheduler_lr]
 
-        return [optimizer], [scheduler_warmup, scheduler_lr]
+    def optimizer_step(
+            self,
+            epoch: int,
+            batch_idx: int,
+            optimizer: Union[Optimizer, LightningOptimizer],
+            optimizer_idx: int = 0,
+            optimizer_closure: Optional[Callable[[], Any]] = None,
+            on_tpu: bool = False,
+            using_native_amp: bool = False,
+            using_lbfgs: bool = False,
+    ) -> None:
+        # update params
+        optimizer.step(closure=optimizer_closure)
+
+        # manually warm up lr without a scheduler
+        if self.trainer.global_step < self.optimizer_args.warmup_steps:
+            lr_scale = min(1.0, float(self.trainer.global_step + 1) / self.optimizer_args.warmup_steps)
+            for pg in optimizer.param_groups:
+                pg["lr"] = lr_scale * self.lr
 
     def training_step(self, train_batch, batch_idx, subset="train"):
         trg_seq_padded, trg_img, lengths = train_batch

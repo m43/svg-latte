@@ -33,8 +33,13 @@ def get_parser_main_model():
 
     # optimizer
     # parser.add_argument('--lr', type=float, default=0.0002, help='learning rate')
-    parser.add_argument('--lr', type=float, default=0.00042, help='learning rate')  # 0.0004365158322401656
+    parser.add_argument('--lr', type=float, default=0.00042, help='learning rate')  # auto_lr_find:0.0004365158322401656
+    # parser.add_argument('--lr', type=float, default=0.0069, help='learning rate')  # auto_lr_find:0.006918309709189364
     parser.add_argument('--auto_lr_find', action='store_true', help='Use the auto lr finder from Pytorch Lightning')
+    parser.add_argument('--warmup_steps', type=int, default=720, help='number of warmup steps')
+    parser.add_argument('--scheduler_decay_epochs', type=int, default=30,
+                        help='Number of steps to decay learning rate, periodically')
+    parser.add_argument('--scheduler_decay_gamma', type=float, default=0.9, help='Factor for learning rate decay')
     parser.add_argument('--beta1', type=float, default=0.9, help='beta1 of Adam optimizer')
     parser.add_argument('--beta2', type=float, default=0.999, help='beta2 of Adam optimizer')
     parser.add_argument('--eps', type=float, default=1e-8, help='Adam epsilon')
@@ -267,7 +272,10 @@ def main(config):
         "beta1": config.beta1,
         "beta2": config.beta2,
         "eps": config.eps,
-        "weight_decay": config.weight_decay
+        "weight_decay": config.weight_decay,
+        "warmup_steps": config.warmup_steps,
+        "scheduler_decay_epochs": config.scheduler_decay_epochs,
+        "scheduler_decay_gamma": config.scheduler_decay_gamma,
     })
 
     neural_rasterizer = NeuralRasterizer(
@@ -298,8 +306,8 @@ def main(config):
                                     f"_lr={config.lr}" \
                                     f"_wd={config.weight_decay}" \
                                     f"_cx={config.cx_loss_w}" \
-                                    f"_l1={config.l1_loss_w}" \
-                                    f"_{datetime.now().strftime('%m.%d_%H.%M.%S')}"
+                                    f"_l1={config.l1_loss_w}"
+    config.experiment_version += f"_{datetime.now().strftime('%m.%d_%H.%M.%S')}"
 
     wandb_logger = WandbLogger(
         project=config.experiment_name,
@@ -355,6 +363,7 @@ def main(config):
             callbacks=callbacks,
         )
     if config.auto_lr_find:
+        print("trainer.tune() to automatically find the learning rate")
         trainer.tune(neural_rasterizer, dm)
         print("Finished tuning")
     trainer.fit(neural_rasterizer, dm, ckpt_path=config.checkpoint_path)
