@@ -1,11 +1,13 @@
 import io
 import os
 import random
+from collections import defaultdict
 from concurrent import futures
 from datetime import datetime
 
 import cairosvg
 import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torchvision
@@ -34,6 +36,7 @@ class ArgoverseDataset(Dataset):
             rendered_images_height=64,
             render_on_the_fly=True,
             remove_redundant_features=True,
+            viewbox=24,
             numericalize=False,
             zoom_preprocess_factor=1.0,  # zoom factor independent of augmentations
             augment=True,
@@ -50,6 +53,7 @@ class ArgoverseDataset(Dataset):
         self.zoom_preprocess_factor = zoom_preprocess_factor
         self.remove_redundant_features = remove_redundant_features
         self.numericalize = numericalize
+        self.viewbox = viewbox
 
         self.augment = augment
         self.augment_rotate_degrees = augment_rotate_degrees
@@ -126,7 +130,7 @@ class ArgoverseDataset(Dataset):
         return Image.open(io.BytesIO(img_data))
 
     @staticmethod
-    def svgtensor_to_img(svg, output_width=64, output_height=64):
+    def svg_to_img(svg, output_width=64, output_height=64):
         pil_image = ArgoverseDataset.draw_svgtensor(svg, output_width, output_height)
         return torch.tensor(np.array(pil_image).transpose(2, 0, 1)[-1:]) / 255.
 
@@ -179,7 +183,7 @@ class ArgoverseDataset(Dataset):
         # if self.cache_render_on_the_fly and self.rendered_images[idx] is not None:
         #     return self.rendered_images[idx]
 
-        rendered_image = ArgoverseDataset.svgtensor_to_img(
+        rendered_image = ArgoverseDataset.svg_to_img(
             svg,
             self.rendered_images_width,
             self.rendered_images_height
@@ -218,6 +222,7 @@ class ArgoverseDataset(Dataset):
         return svg
 
     def _preprocess(self, svg):
+        svg.normalize(Bbox(self.viewbox))
         if self.zoom_preprocess_factor != 1.0:
             svg.zoom(self.zoom_preprocess_factor)
         if self.augment:
@@ -451,5 +456,88 @@ def main3():
         output_folder = f"data/argoverse10/{subset}"
         argoverse_to_svg_dataset(caching_path, output_folder, max_workers=40)
 
+
+def main4():
+    """
+    Count the real maximum values for max_num_groups, max_seq_len, and max_total_len.
+    They might be lower than the numbers used when creating Argoverse in SVG-Net, i.e.
+        self.max_num_groups = 120
+        self.max_seq_len = 200
+        self.max_total_len = 2000
+    If the numbers are really lower, then it will be easier to evaluate them with DeepSVG.
+    """
+    for subset, csv_path in [
+        ("train", "data/argoverse/train/svg_meta.csv"),
+        ("val", "data/argoverse/val/svg_meta.csv"),
+        ("test", "data/argoverse/test/svg_meta.csv"),
+        # ("val", "data/argoverse10/val/svg_meta.csv"),
+    ]:
+        print(f"Subset: {subset}")
+        df = pd.read_csv(csv_path)
+        print(f"Dataset length: {len(df)}")
+        print(f"nb_groups \\in [{df.nb_groups.min()},{df.nb_groups.max()}]")
+        print(f"seq_len \\in [{df.max_len_group.min()},{df.max_len_group.max()}]")
+        print(f"total_len \\in [{df.total_len.min()},{df.total_len.max()}]")
+        print()
+
+    """
+    Subset: train
+    Dataset length: 205942
+    nb_groups \'in [2,15]
+    seq_len \'in [4,25]
+    total_len \'in [12,227]
+    
+    Subset: val
+    Dataset length: 39472
+    nb_groups \'in [1,15]
+    seq_len \'in [3,26]
+    total_len \'in [5,227]
+    
+    Subset: test
+    Dataset length: 78143
+    nb_groups \\in [4,15]
+    seq_len \\in [3,25]
+    total_len \\in [16,213]
+    """
+
+
+def main5():
+    """Visualize different viewboxes for images of different resolution."""
+
+    datetime_str = datetime.now().strftime('%m.%d_%H.%M.%S')
+    resolutions = [64, 128, 256, 512]
+    viewbox_sizes = [24, 64, 128, 256]
+    viewbox_sizes_str = "-".join(map(str, viewbox_sizes))
+    for res in resolutions:
+        rendered_images = defaultdict(list)
+        for viewbox in viewbox_sizes:
+            ds = ArgoverseDataset(
+                caching_path_prefix="/home/user72/Desktop/argoverse1/val",
+                rendered_images_width=res,
+                rendered_images_height=res,
+                render_on_the_fly=True,
+                remove_redundant_features=True,
+                numericalize=False,
+                augment=False,
+                viewbox=viewbox,
+                zoom_preprocess_factor=0.70710678118,
+            )
+            rendered_images["img1"].append(ds[0][1])
+            rendered_images["img2"].append(ds[-1][1])
+
+        for id, imgs in rendered_images.items():
+            grid = torchvision.utils.make_grid(imgs, nrow=int(np.sqrt(len(viewbox_sizes))))
+            plt.imsave(
+                f"/home/user72/Desktop/viewbox/{datetime_str}_{id}_{res}_{viewbox_sizes_str}.png",
+                grid.permute(1, 2, 0).numpy()
+            )
+
+    print("done")
+
+
 if __name__ == '__main__':
-    main2()
+    # main1()
+    # main2()
+    # main3()
+    # main4()
+    main5()

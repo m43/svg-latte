@@ -100,6 +100,9 @@ def get_parser_main_model():
     parser.add_argument('--argoverse_test_workers', type=int, default=0, help='')
     parser.add_argument('--argoverse_zoom_preprocess_factor', type=float, default=1.0,
                         help='Factor for scaling during preprocessing. Useful when all SVGs must be zoomed out.')
+    parser.add_argument('--argoverse_viewbox', type=int, default=24,
+                        help='The size of the viewbox to be used when rendering the SVG using cairosvg.'
+                             'The larger the viewbox, the thinner the rendered lines become.')
     parser.add_argument('--argoverse_augment_train', action='store_true', help='Add augmentations to train dataset.')
     parser.add_argument('--argoverse_augment_val', action='store_true', help='Add augmentations to val dataset.')
     parser.add_argument('--argoverse_augment_test', action='store_true', help='Add augmentations to test dataset.')
@@ -163,6 +166,7 @@ def get_dataset(config):
             val_workers=config.argoverse_val_workers,
             test_workers=config.argoverse_test_workers,
             zoom_preprocess_factor=config.argoverse_zoom_preprocess_factor,
+            viewbox=config.argoverse_viewbox,
             augment_train=config.argoverse_augment_train,
             augment_val=config.argoverse_augment_val,
             augment_test=config.argoverse_augment_test,
