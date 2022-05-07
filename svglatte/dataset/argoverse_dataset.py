@@ -320,7 +320,56 @@ class ArgoverseDataModule(pl.LightningDataModule):
         )
 
 
+# cmds_onehot = torch.nn.functional.one_hot(cmds.to(torch.int64), num_classes=CMDS_CLASSES)
+def svgtensor_data_to_svg_file(svgtensor_data, output_svg_path):
+    # if True:  # TODO TMP fix until I create svgtensors instead of my preprocessed sequences
+    #     seq = svgtensor_data
+    #     cmds = torch.argmax(seq[..., :CMDS_CLASSES], dim=-1)
+    #     args = seq[..., CMDS_CLASSES:]
+    #     svgtensor = SVGTensor.from_cmd_args(cmds, args)
+    #     svgtensor.unpad()  # removes eos (and padding, but the preprocessed sequence have no padding)
+    #     svgtensor.drop_sos()
+    #     svgtensor_data = svgtensor.data
+    # else:
+    svgtensor_data = svgtensor_data[1:-1]  # Remove SOS and EOS
+
+    raise (Exception())
+    svg = SVG.from_tensor(svgtensor_data, viewbox=Bbox(24))
+    svg.split_paths()
+    svg.save_svg(output_svg_path)
+
+
+def argoverse_to_svg_dataset(caching_path_sequences, output_folder, max_workers):
+    # Prepare arguments for DeepSVG's main
+    args = Object()
+    args.data_folder = os.path.join(output_folder, "svgs")
+    args.output_folder = os.path.join(output_folder, "svgs_simplified")
+    args.output_meta_file = os.path.join(output_folder, "svg_meta.csv")
+    args.workers = max_workers
+    ensure_dir(args.data_folder)
+    ensure_dir(args.output_folder)
+
+    # Load the svgtensors
+    assert os.path.isfile(caching_path_sequences)
+    svgtensor_data_list = torch.load(caching_path_sequences)
+
+    # Create SVGs from svgtensors and save them to disk
+    with futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with tqdm(total=len(svgtensor_data_list)) as pbar:
+            preprocess_requests = [
+                executor.submit(svgtensor_data_to_svg_file, svgtensor_data, os.path.join(args.data_folder, f"{i}.svg"))
+                for i, svgtensor_data in enumerate(svgtensor_data_list)
+            ]
+            for f in futures.as_completed(preprocess_requests):
+                print(f.result())
+                pbar.update(1)
+
+    # Use DeepSVG's preprocessing functionality
+    main(args)
+
+
 def main1():
+    """Plotting a few images"""
     print("load datasets")
     val_ds_1 = ArgoverseDataset(
         caching_path_prefix="/home/user72/Desktop/argoverse1/val",
@@ -359,6 +408,7 @@ def main1():
 
 
 def main2():
+    """Verify that all sequences are inside the 24 viewbox"""
     for ds_name in ["val", "test", "train"]:  # val is the smallest, train the largest subset.
         print(f"Loading subset: {ds_name}")
         ds = ArgoverseDataset(
@@ -385,6 +435,21 @@ def main2():
         print()
         print()
 
+
+def main3():
+    """Convert Argoverse to a deepsvg.svg_dataset.SVGDataset so that it can be evaluated with DeepSVG."""
+    # for subset in ["val", "test", "train"]:
+    #     caching_path = f"/home/user72/Desktop/argoverse1/{subset}.sequences.torchsave"
+    #     output_folder = f"/mnt/terra/xoding/epfl-vita/svg-latte/data/argoverse_dummy/{subset}"
+    #     argoverse_to_svg_dataset(caching_path, output_folder, max_workers=8)
+
+    for subset in ["val"]:
+        # for subset in ["test"]:
+        # for subset in ["train"]:
+        # for subset in ["val", "test", "train"]:
+        caching_path = f"data/argoverse10/{subset}.sequences.torchsave"
+        output_folder = f"data/argoverse10/{subset}"
+        argoverse_to_svg_dataset(caching_path, output_folder, max_workers=40)
 
 if __name__ == '__main__':
     main2()
