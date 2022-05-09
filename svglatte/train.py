@@ -69,6 +69,8 @@ def get_parser_main_model():
 
     # decoder
     parser.add_argument('--decoder_n_filters_in_last_conv_layer', type=int, default=16, help='')
+    parser.add_argument('--decoder_norm_layer_name', type=str, default="layernorm",
+                        help='Which layer normalization to use between the deconvolution layers.')
 
     # datasets
     parser.add_argument('--cache_to_disk', action='store_false', help='')
@@ -226,6 +228,7 @@ def main(config):
         decoder = Decoder(
             in_channels=encoder.output_size,
             out_channels=1,
+            norm_layer_name=config.decoder_norm_layer_name,
             n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,
         )
     elif config.argoverse_rendered_images_width == 128 and config.argoverse_rendered_images_height == 128:
@@ -236,6 +239,7 @@ def main(config):
             stride_list=(2, 2, 2, 2, 2, 2, 2),
             padding_list=(1, 1, 1, 2, 2, 2, 2),
             output_padding_list=(1, 1, 1, 1, 1, 1, 1),
+            norm_layer_name=config.decoder_norm_layer_name,
             n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,
         )
     elif config.argoverse_rendered_images_width == 200 and config.argoverse_rendered_images_height == 200:
@@ -246,8 +250,8 @@ def main(config):
             stride_list=(2, 2, 2, 2, 2, 2, 2, 2),
             padding_list=(1, 1, 1, 2, 2, 2, 2, 2),
             output_padding_list=(1, 1, 1, 1, 1, 1, 1, 1),
+            norm_layer_name=config.decoder_norm_layer_name,
             n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,  # 64
-            # norm_layer=nn.LayerNorm,
         )
     elif config.argoverse_rendered_images_width == 512 and config.argoverse_rendered_images_height == 512:
         decoder = Decoder(
@@ -257,8 +261,8 @@ def main(config):
             stride_list=(2, 2, 2, 2, 2, 2, 2, 2, 2),
             padding_list=(1, 1, 1, 1, 1, 2, 2, 2, 2),
             output_padding_list=(1, 1, 1, 1, 1, 1, 1, 1, 1),
+            norm_layer_name=config.decoder_norm_layer_name,
             n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,  # 64
-            # norm_layer=nn.LayerNorm,
         )
     else:
         raise Exception(f"Image size {config.argoverse_rendered_images_width}x{config.argoverse_rendered_images_height}"
