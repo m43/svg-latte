@@ -1,12 +1,18 @@
 import os
+import pathlib
 
-from svglatte.utils.util import ensure_dir
+DEBUG_HEADER = """#SBATCH --chdir /scratch/izar/rajic/svg-latte
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=40
+#SBATCH --mem=50G
+#SBATCH --partition=debug
+#SBATCH --qos=gpu
+#SBATCH --gres=gpu:2
+#SBATCH --time=1:00:00
+"""
 
-
-def fill_template(i, sbatch_id, command):
-    return f"""#!/bin/bash
-
-#SBATCH --chdir /scratch/izar/rajic/svg-latte
+PRODUCTION_HEADER = """#SBATCH --chdir /scratch/izar/rajic/svg-latte
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
@@ -15,6 +21,12 @@ def fill_template(i, sbatch_id, command):
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:2
 #SBATCH --time=72:00:00
+"""
+
+
+def fill_template(i, sbatch_id, command, debug):
+    return f"""#!/bin/bash
+{DEBUG_HEADER if debug else PRODUCTION_HEADER}
 #SBATCH -o ./slurm_logs/slurm-{sbatch_id}-{i:02d}-%j.out
 
 set -e
@@ -30,6 +42,7 @@ module load cuda/11.0.2
 # Environment
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate svglatte
+export PYTHONPATH="$PYTHONPATH:$PWD/deepsvg"
 
 # Run
 date
@@ -112,8 +125,248 @@ sbatch_configurations = {
         ]
     },
     "sbatch_06": {
+        "debug": False,
         "commands": [
-            # experiment_version
+            "python -m svglatte.train"
+            " --experiment_name=svglatte_argoverse_128x128_rotAUG"
+            " --experiment_version 'S6.01_FC.4c_rotAUG_noLN_noCX'"
+            " --gpus -1"
+            " --n_epochs 450"
+            " --early_stopping_patience 50"
+            " --batch_size=512"
+            " --lr 0.00042"
+            " --weight_decay 0.0"
+            " --encoder_type fc_lstm"
+            " --lstm_num_layers 4"
+            " --latte_ingredients c"
+            " --decoder_n_filters_in_last_conv_layer 16"
+            " --no_layernorm"
+            " --cx_loss_w 0.0"
+            " --dataset=argoverse"
+            " --argoverse_train_workers 40"
+            " --argoverse_val_workers 10"
+            " --argoverse_rendered_images_width 128"
+            " --argoverse_rendered_images_height 128"
+            " --argoverse_render_onthefly"
+            " --argoverse_augment_train"
+            " --argoverse_zoom_preprocess_factor 0.70710678118",
+
+            "python -m svglatte.train"
+            " --experiment_name=svglatte_argoverse_128x128_rotAUG"
+            " --experiment_version 'S6.02_FC.4c_noAUG_noLN_noCX'"
+            " --gpus -1"
+            " --n_epochs 450"
+            " --early_stopping_patience 50"
+            " --batch_size=512"
+            " --lr 0.00042"
+            " --weight_decay 0.0"
+            " --encoder_type fc_lstm"
+            " --lstm_num_layers 4"
+            " --latte_ingredients c"
+            " --decoder_n_filters_in_last_conv_layer 16"
+            " --no_layernorm"
+            " --cx_loss_w 0.0"
+            " --dataset=argoverse"
+            " --argoverse_train_workers 40"
+            " --argoverse_val_workers 10"
+            " --argoverse_rendered_images_width 128"
+            " --argoverse_rendered_images_height 128"
+            " --argoverse_render_onthefly"
+            " --argoverse_zoom_preprocess_factor 0.70710678118",
+
+            "python -m svglatte.train"
+            " --experiment_name=svglatte_argoverse_128x128_rotAUG"
+            " --experiment_version 'S6.03_FC.4c_rotAUG_noLN_noCX_WD=0.0001'"
+            " --gpus -1"
+            " --n_epochs 450"
+            " --early_stopping_patience 50"
+            " --batch_size=512"
+            " --lr 0.00042"
+            " --weight_decay 0.0001"
+            " --encoder_type fc_lstm"
+            " --lstm_num_layers 4"
+            " --latte_ingredients c"
+            " --decoder_n_filters_in_last_conv_layer 16"
+            " --no_layernorm"
+            " --cx_loss_w 0.0"
+            " --dataset=argoverse"
+            " --argoverse_train_workers 40"
+            " --argoverse_val_workers 10"
+            " --argoverse_rendered_images_width 128"
+            " --argoverse_rendered_images_height 128"
+            " --argoverse_render_onthefly"
+            " --argoverse_augment_train"
+            " --argoverse_zoom_preprocess_factor 0.70710678118",
+
+            "python -m svglatte.train"
+            " --experiment_name=svglatte_argoverse_128x128_rotAUG"
+            " --experiment_version 'S6.04_FC.4c_rotAUG_noLN_noCX_NGF=32'"
+            " --gpus -1"
+            " --n_epochs 450"
+            " --early_stopping_patience 50"
+            " --batch_size=512"
+            " --lr 0.00042"
+            " --weight_decay 0.0"
+            " --encoder_type fc_lstm"
+            " --lstm_num_layers 4"
+            " --latte_ingredients c"
+            " --decoder_n_filters_in_last_conv_layer 32"
+            " --no_layernorm"
+            " --cx_loss_w 0.0"
+            " --dataset=argoverse"
+            " --argoverse_train_workers 40"
+            " --argoverse_val_workers 10"
+            " --argoverse_rendered_images_width 128"
+            " --argoverse_rendered_images_height 128"
+            " --argoverse_render_onthefly"
+            " --argoverse_augment_train"
+            " --argoverse_zoom_preprocess_factor 0.70710678118",
+
+            "python -m svglatte.train"
+            " --experiment_name=svglatte_argoverse_128x128_rotAUG"
+            " --experiment_version 'S6.05_FC.4c_rotAUG_LN_noCX'"
+            " --gpus -1"
+            " --n_epochs 450"
+            " --early_stopping_patience 50"
+            " --batch_size=512"
+            " --lr 0.00042"
+            " --weight_decay 0.0"
+            " --encoder_type fc_lstm"
+            " --lstm_num_layers 4"
+            " --latte_ingredients c"
+            " --decoder_n_filters_in_last_conv_layer 16"
+            " --cx_loss_w 0.0"
+            " --dataset=argoverse"
+            " --argoverse_train_workers 40"
+            " --argoverse_val_workers 10"
+            " --argoverse_rendered_images_width 128"
+            " --argoverse_rendered_images_height 128"
+            " --argoverse_render_onthefly"
+            " --argoverse_augment_train"
+            " --argoverse_zoom_preprocess_factor 0.70710678118",
+
+            "python -m svglatte.train"
+            " --experiment_name=svglatte_argoverse_128x128_rotAUG"
+            " --experiment_version 'S6.06_FC.4c_rotAUG_noLN_noCX_GC=1.0'"
+            " --gpus -1"
+            " --n_epochs 450"
+            " --early_stopping_patience 50"
+            " --batch_size=512"
+            " --lr 0.00042"
+            " --weight_decay 0.0"
+            " --encoder_type fc_lstm"
+            " --lstm_num_layers 4"
+            " --latte_ingredients c"
+            " --decoder_n_filters_in_last_conv_layer 16"
+            " --no_layernorm"
+            " --cx_loss_w 0.0"
+            " --dataset=argoverse"
+            " --argoverse_train_workers 40"
+            " --argoverse_val_workers 10"
+            " --argoverse_rendered_images_width 128"
+            " --argoverse_rendered_images_height 128"
+            " --argoverse_render_onthefly"
+            " --argoverse_zoom_preprocess_factor 0.70710678118"
+            " --argoverse_augment_train"
+            " --gradient_clip_val 1.0",
+
+            "python -m svglatte.train"
+            " --experiment_name=svglatte_argoverse_128x128_rotAUG"
+            " --experiment_version 'S6.07_FC.4c_rotAUG_noLN_CX'"
+            " --gpus -1"
+            " --n_epochs 450"
+            " --early_stopping_patience 50"
+            " --batch_size=512"
+            " --lr 0.00042"
+            " --weight_decay 0.0"
+            " --encoder_type fc_lstm"
+            " --lstm_num_layers 4"
+            " --latte_ingredients c"
+            " --decoder_n_filters_in_last_conv_layer 16"
+            " --no_layernorm"
+            " --cx_loss_w 0.1"
+            " --dataset=argoverse"
+            " --argoverse_train_workers 40"
+            " --argoverse_val_workers 10"
+            " --argoverse_rendered_images_width 128"
+            " --argoverse_rendered_images_height 128"
+            " --argoverse_render_onthefly"
+            " --argoverse_zoom_preprocess_factor 0.70710678118"
+            " --argoverse_augment_train",
+
+            "python -m svglatte.train"
+            " --experiment_name=svglatte_argoverse_128x128_rotAUG"
+            " --experiment_version 'S6.08_FC.4c_rotAUG_noLN_noCX_WD=0.000005'"
+            " --gpus -1"
+            " --n_epochs 450"
+            " --early_stopping_patience 50"
+            " --batch_size=512"
+            " --lr 0.00042"
+            " --weight_decay 0.000005"
+            " --encoder_type fc_lstm"
+            " --lstm_num_layers 4"
+            " --latte_ingredients c"
+            " --decoder_n_filters_in_last_conv_layer 16"
+            " --no_layernorm"
+            " --cx_loss_w 0.0"
+            " --dataset=argoverse"
+            " --argoverse_train_workers 40"
+            " --argoverse_val_workers 10"
+            " --argoverse_rendered_images_width 128"
+            " --argoverse_rendered_images_height 128"
+            " --argoverse_render_onthefly"
+            " --argoverse_augment_train"
+            " --argoverse_zoom_preprocess_factor 0.70710678118",
+
+            "python -m svglatte.train"
+            " --experiment_name=svglatte_argoverse_128x128_rotAUG"
+            " --experiment_version 'S6.09_FC.4c_rotAUG_noLN_noCX_viewbox=128'"
+            " --gpus -1"
+            " --n_epochs 450"
+            " --early_stopping_patience 50"
+            " --batch_size=512"
+            " --lr 0.00042"
+            " --weight_decay 0.0"
+            " --encoder_type fc_lstm"
+            " --lstm_num_layers 4"
+            " --latte_ingredients c"
+            " --decoder_n_filters_in_last_conv_layer 16"
+            " --no_layernorm"
+            " --cx_loss_w 0.0"
+            " --dataset=argoverse"
+            " --argoverse_train_workers 40"
+            " --argoverse_val_workers 10"
+            " --argoverse_rendered_images_width 128"
+            " --argoverse_rendered_images_height 128"
+            " --argoverse_render_onthefly"
+            " --argoverse_augment_train"
+            " --argoverse_zoom_preprocess_factor 0.70710678118"
+            " --argoverse_viewbox 128",
+
+            "python -m svglatte.train"
+            " --experiment_name=svglatte_argoverse_128x128_rotAUG"
+            " --experiment_version 'S6.10_FC.4c_rotAUG_noLN_noCX_BN'"
+            " --gpus -1"
+            " --n_epochs 450"
+            " --early_stopping_patience 50"
+            " --batch_size=512"
+            " --lr 0.00042"
+            " --weight_decay 0.0"
+            " --encoder_type fc_lstm"
+            " --lstm_num_layers 4"
+            " --latte_ingredients c"
+            " --decoder_n_filters_in_last_conv_layer 16"
+            " --no_layernorm"
+            " --cx_loss_w 0.0"
+            " --dataset=argoverse"
+            " --argoverse_train_workers 40"
+            " --argoverse_val_workers 10"
+            " --argoverse_rendered_images_width 128"
+            " --argoverse_rendered_images_height 128"
+            " --argoverse_render_onthefly"
+            " --argoverse_augment_train"
+            " --argoverse_zoom_preprocess_factor 0.70710678118"
+            " --decoder_norm_layer_name batchnorm",
         ]
 
     },
@@ -128,16 +381,19 @@ sbatch_configurations = {
     },
 }
 
-SBATCH_ID = 'sbatch_05'
+SBATCH_ID = 'sbatch_06'
 OUTPUT_FOLDER = f"./sbatch/{SBATCH_ID}"
 
 sbatch_config = sbatch_configurations[SBATCH_ID]
 if __name__ == '__main__':
-    ensure_dir(OUTPUT_FOLDER)
+    dirname = pathlib.Path(OUTPUT_FOLDER)
+    if not dirname.is_dir():
+        dirname.mkdir(parents=True, exist_ok=False)
+
     for i, cmd in enumerate(sbatch_config["commands"]):
         i += 1  # start from 1
         script_path = os.path.join(OUTPUT_FOLDER, f"svglatte-{SBATCH_ID.split('_')[-1]}-{i:02d}.sh")
         with open(script_path, "w") as f:
-            f.write(fill_template(i=i, sbatch_id=SBATCH_ID, command=cmd))
+            f.write(fill_template(i=i, sbatch_id=SBATCH_ID, command=cmd, debug=sbatch_config["debug"]))
         print(f"Created script: {script_path}")
     print("Done")
