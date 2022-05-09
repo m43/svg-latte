@@ -31,12 +31,14 @@ class Config(Config):
         self.log_every = 20
         self.val_every = 1000
         self.ckpt_every = 10000
-        self.pretrained_path = "logs/models/dataset/deepsvg_hierarchical_ordered_argoverse_2/012000.pth.tar"
+        # self.pretrained_path = "logs/models/dataset/deepsvg_hierarchical_ordered_argoverse_2/012000.pth.tar"
+        self.pretrained_path = "logs/models/dataset/deepsvg_hierarchical_ordered_argoverse/best.pth.tar"
 
         # Argoverse specific
         self.max_num_groups = 15  # 120
         self.max_seq_len = 26  # 200
         self.max_total_len = 227  # 2000
+        self.nb_augmentations = 1
 
         self.model_cfg.max_num_groups = self.max_num_groups
         self.model_cfg.max_seq_len = self.max_seq_len
