@@ -1,4 +1,6 @@
 import argparse
+import importlib
+import warnings
 from datetime import datetime
 
 import pytorch_lightning as pl
@@ -13,6 +15,7 @@ from svglatte.dataset import argoverse_dataset
 from svglatte.dataset import deepsvg_dataset
 from svglatte.dataset import deepvecfont_dataset
 from svglatte.models.custom_lstms import SequenceEncoder
+from svglatte.models.deepsvg_encoder import DeepSVGEncoder
 from svglatte.models.lstm_layernorm import LayerNormLSTMEncoder
 from svglatte.models.neural_rasterizer.cnn_decoder import Decoder
 from svglatte.models.neural_rasterizer.neural_rasterizer import NeuralRasterizer
@@ -52,9 +55,11 @@ def get_parser_main_model():
 
     # encoder
     parser.add_argument('--encoder_type', type=str, choices=[
-        'dvf_lstm', 'lstm', 'fc_lstm_original', 'fc_lstm', 'residual_lstm', 'lstm+mha',
+        'dvf_lstm', 'lstm', 'fc_lstm_original', 'fc_lstm', 'residual_lstm', 'lstm+mha', 'deepsvg', 'averager_baseline'
     ])
-    parser.add_argument('--latte_ingredients', type=str, default='hc', choices=['h', 'c', 'hc'])
+    parser.add_argument('--latte_ingredients', type=str, default='hc', choices=['h', 'c', 'hc'],
+                        help="For LSTM based encoders, should the latent representation contain"
+                             "only the hidden state (h), only the cell state (c), or both (hc)")
     parser.add_argument('--lstm_hidden_size', type=int, default=512, help='lstm encoder hidden_size')
     parser.add_argument('--lstm_num_layers', type=int, default=4, help='svg encoder number of hidden layers')
     parser.add_argument('--lstm_dropout', type=float, default=0.0, help='lstm dropout')
@@ -66,6 +71,11 @@ def get_parser_main_model():
     parser.add_argument('--mha_num_heads', type=int, default=8, help='')
     parser.add_argument('--mha_dropout', type=float, default=0.0, help='')
     parser.add_argument('--dvf_lstm_unpack_output', action='store_true', help='')
+    parser.add_argument('--deepsvg_encoder_config_module', type=str,
+                        default='svglatte.dataset.deepsvg_encoder_argoverse')
+    parser.add_argument('--deepsvg_encoder_hidden_size', type=int, default=256,
+                        help='Latent representation dimensionality of DeepSVG\'s encoder.'
+                             'The value will be written into the `dim_z` parameter of the model.')
 
     # decoder
     parser.add_argument('--decoder_n_filters_in_last_conv_layer', type=int, default=16, help='')
@@ -137,6 +147,20 @@ def get_parser_main_model():
 
 
 def get_dataset(config):
+    deepsvg_encoder_config = None
+    deepsvg_encoder_config_for_argoverse = {}
+    if config.encoder_type == "deepsvg":
+        deepsvg_encoder_config = importlib.import_module(config.deepsvg_encoder_config_module).Config()
+        deepsvg_encoder_config.model_cfg.dim_z = config.deepsvg_encoder_hidden_size
+        deepsvg_encoder_config_for_argoverse.update({
+            'return_deepsvg_model_input': True,
+            'deepsvg_model_args': deepsvg_encoder_config.model_args,
+            'deepsvg_max_num_groups': deepsvg_encoder_config.max_num_groups,
+            'deepsvg_max_seq_len': deepsvg_encoder_config.max_seq_len,
+            'deepsvg_max_total_len': deepsvg_encoder_config.max_total_len,
+            'deepsvg_pad_val': -1,
+        })
+
     if config.dataset == "deepvecfont":
         seq_feature_dim = deepvecfont_dataset.SEQ_FEATURE_DIM
         dm = deepvecfont_dataset.DeepVecFontDataModule(
@@ -183,14 +207,15 @@ def get_dataset(config):
             augment_scale_max=config.argoverse_augment_scale_max,
             augment_translate=config.argoverse_augment_translate,
             numericalize=config.argoverse_numericalize,
+            **deepsvg_encoder_config_for_argoverse
         )
         seq_feature_dim = dm.train_ds.get_number_of_sequence_dimensions()
     else:
         raise Exception(f"Invalid dataset passed: {config.dataset}")
-    return dm, seq_feature_dim
+    return dm, seq_feature_dim, deepsvg_encoder_config
 
 
-def get_encoder(config):
+def get_encoder(config, deepsvg_cfg=None):
     # TODO refactor to use hydra or subparsers
     encoder_args = AttrDict()
     encoder_args.update({
@@ -211,6 +236,8 @@ def get_encoder(config):
     if config.encoder_type == "dvf_lstm":
         encoder_args.unpack_output = config.dvf_lstm_unpack_output
         encoder = LayerNormLSTMEncoder(**encoder_args)
+    elif config.encoder_type == "deepsvg":
+        encoder = DeepSVGEncoder(deepsvg_cfg)
     else:
         encoder = SequenceEncoder(**encoder_args)
 
@@ -220,10 +247,10 @@ def get_encoder(config):
 def main(config):
     pl.seed_everything(72)
 
-    dm, seq_feature_dim = get_dataset(config)
+    dm, seq_feature_dim, deepsvg_encoder_config = get_dataset(config)
     config.lstm_input_size = seq_feature_dim
 
-    encoder = get_encoder(config)
+    encoder = get_encoder(config, deepsvg_encoder_config)
     if config.argoverse_rendered_images_width == 64 and config.argoverse_rendered_images_height == 64:
         decoder = Decoder(
             in_channels=encoder.output_size,
@@ -265,8 +292,9 @@ def main(config):
             n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,  # 64
         )
     else:
-        raise Exception(f"Image size {config.argoverse_rendered_images_width}x{config.argoverse_rendered_images_height}"
-                        f" not supported")
+        raise Exception(
+            f"Image size {config.argoverse_rendered_images_width}x{config.argoverse_rendered_images_height}"
+            f" not supported")
     assert config.argoverse_rendered_images_width == decoder.image_sizes[-1]
     assert config.argoverse_rendered_images_height == decoder.image_sizes[-1]
 

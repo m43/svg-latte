@@ -18,15 +18,16 @@ from tqdm import tqdm
 
 from deepsvg.dataset.preprocess import main
 from deepsvg.difflib.tensor import SVGTensor
+from deepsvg.svg_dataset import SVGDataset
 from deepsvg.svglib.geom import Bbox, Angle, Point
 from deepsvg.svglib.svg import SVG
-from svglatte.utils.util import pad_collate_fn, Object, ensure_dir
+from svglatte.utils.util import Object, ensure_dir
 
 CMDS_CLASSES = 7
-ARGS_DIM = 13  # 11 + 2
+ARGS_GROUPED_DIM = 13  # 11 + 2
 
 
-# SEQ_FEATURE_DIM = CMDS_CLASSES + ARGS_DIM
+# SEQ_FEATURE_DIM = CMDS_CLASSES + ARGS_GROUPED_DIM
 
 class ArgoverseDataset(Dataset):
     def __init__(
@@ -45,6 +46,12 @@ class ArgoverseDataset(Dataset):
             augment_scale_min=0.6,
             augment_scale_max=1.1,
             augment_translate=5.4,
+            return_deepsvg_model_input=False,
+            deepsvg_model_args=None,
+            deepsvg_max_num_groups=None,
+            deepsvg_max_seq_len=None,
+            deepsvg_max_total_len=None,
+            deepsvg_pad_val=None,
     ):
         self.render_on_the_fly = render_on_the_fly
         self.rendered_images_width = rendered_images_width
@@ -61,6 +68,13 @@ class ArgoverseDataset(Dataset):
         self.augment_scale_min = augment_scale_min
         self.augment_scale_max = augment_scale_max
         self.augment_shear_degrees = augment_shear_degrees
+
+        self.return_deepsvg_model_input = return_deepsvg_model_input
+        self.deepsvg_model_args = deepsvg_model_args
+        self.deepsvg_max_num_groups = deepsvg_max_num_groups
+        self.deepsvg_max_seq_len = deepsvg_max_seq_len
+        self.deepsvg_max_total_len = deepsvg_max_total_len
+        self.deepsvg_pad_val = deepsvg_pad_val
 
         self.caching_path_prefix = caching_path_prefix
         self.caching_path_sequences = f"{caching_path_prefix}.sequences.torchsave"
@@ -103,7 +117,7 @@ class ArgoverseDataset(Dataset):
             #         0., -78944., -78944., -78944., -78944., -78944., START_POS_X, START_POS_Y,
             #         -3176850., -3176850., -3176850., -3176850., 28979378., 37385944.])
         else:
-            self.SEQUENCE_FEATURE_DIMENSTIONS = range(CMDS_CLASSES + ARGS_DIM)
+            self.SEQUENCE_FEATURE_DIMENSTIONS = range(CMDS_CLASSES + ARGS_GROUPED_DIM)
 
     @staticmethod
     def draw_svgtensor(
@@ -136,12 +150,12 @@ class ArgoverseDataset(Dataset):
 
     def __getitem__(self, idx):
         seq = self._sequences[idx]  # N x 7+11
-        debug_length = torch.tensor(len(seq))
+        length = torch.tensor(len(seq))
 
         # seq (pytorch tensor) to svgtensor (instance of SVGTensor)
-        cmds = torch.argmax(seq[..., :CMDS_CLASSES], dim=-1)
-        args = seq[..., CMDS_CLASSES:]
-        svgtensor = SVGTensor.from_cmd_args(cmds, args)
+        cmds_grouped = torch.argmax(seq[..., :CMDS_CLASSES], dim=-1)
+        args_grouped = seq[..., CMDS_CLASSES:]
+        svgtensor = SVGTensor.from_cmd_args(cmds_grouped, args_grouped)
         svgtensor.unpad()  # removes eos (and padding, but the preprocessed sequence have no padding)
         svgtensor.drop_sos()
 
@@ -155,6 +169,19 @@ class ArgoverseDataset(Dataset):
         else:
             rendered_image = self._rendered_images[idx]
 
+        if self.return_deepsvg_model_input:
+            model_inputs = SVGDataset.tensors_to_model_inputs(
+                tensors_separately=svg.split_paths().to_tensor(concat_groups=False, PAD_VAL=self.deepsvg_pad_val),
+                fillings=svg.to_fillings(),
+                max_num_groups=self.deepsvg_max_num_groups,
+                max_seq_len=self.deepsvg_max_seq_len,
+                max_total_len=self.deepsvg_max_total_len,
+                pad_val=self.deepsvg_pad_val,
+                model_args=self.deepsvg_model_args,
+                label=None,
+            )
+            return model_inputs, rendered_image, length
+
         # svg back to svgtensor
         tensor_data = svg.to_tensor(concat_groups=True, PAD_VAL=-1)
         svgtensor = SVGTensor.from_data(tensor_data)
@@ -162,13 +189,13 @@ class ArgoverseDataset(Dataset):
         # svgtensor back to seq
         svgtensor.add_eos()
         svgtensor.add_sos()
-        cmds = svgtensor.cmds()
-        cmds_onehot = torch.nn.functional.one_hot(cmds.to(torch.int64), num_classes=CMDS_CLASSES)
-        args = svgtensor.args(with_start_pos=True)
-        seq = torch.cat((cmds_onehot, args), dim=1)  # N x 7+13!
-        length = torch.tensor(len(seq))
+        cmds_grouped = svgtensor.cmds()
+        cmds_grouped_onehot = torch.nn.functional.one_hot(cmds_grouped.to(torch.int64), num_classes=CMDS_CLASSES)
+        args_grouped = svgtensor.args(with_start_pos=True)
+        seq = torch.cat((cmds_grouped_onehot, args_grouped), dim=1)  # N x 7+13!
+        debug_length = torch.tensor(len(seq))
         assert length == debug_length
-        assert CMDS_CLASSES + ARGS_DIM == len(seq[0])
+        assert CMDS_CLASSES + ARGS_GROUPED_DIM == len(seq[0])
 
         seq = seq[:, self.SEQUENCE_FEATURE_DIMENSTIONS]
         return seq, rendered_image, length
@@ -180,18 +207,11 @@ class ArgoverseDataset(Dataset):
         return len(self.SEQUENCE_FEATURE_DIMENSTIONS)
 
     def _render_on_the_fly(self, idx, svg):
-        # if self.cache_render_on_the_fly and self.rendered_images[idx] is not None:
-        #     return self.rendered_images[idx]
-
         rendered_image = ArgoverseDataset.svg_to_img(
             svg,
             self.rendered_images_width,
             self.rendered_images_height
         )
-
-        # if self.cache_render_on_the_fly:
-        #     self.rendered_images[idx] = rendered_image
-
         return rendered_image
 
     def get_sequences_mean(self):
@@ -263,10 +283,10 @@ class ArgoverseDataModule(pl.LightningDataModule):
             self.val_ds = ArgoverseDataset(os.path.join(data_root, f"val"), augment=augment_val, **kwargs)
             self.test_ds = ArgoverseDataset(os.path.join(data_root, f"test"), augment=augment_test, **kwargs)
 
-        def collate_fn(batch):
+        def pad_collate_fn(batch):
             return pad_collate_fn(batch, pad_val)
 
-        self.collate_fn = collate_fn
+        self.collate_fn = pad_collate_fn if not kwargs['return_deepsvg_model_input'] else None
 
         self.train_mean = self.train_ds.get_sequences_mean()
         self.train_mean[:CMDS_CLASSES] = 0.
@@ -325,20 +345,19 @@ class ArgoverseDataModule(pl.LightningDataModule):
         )
 
 
-# cmds_onehot = torch.nn.functional.one_hot(cmds.to(torch.int64), num_classes=CMDS_CLASSES)
-def svgtensor_data_to_svg_file(svgtensor_data, output_svg_path):
-    # if True:  # TODO TMP fix until I create svgtensors instead of my preprocessed sequences
-    #     seq = svgtensor_data
-    #     cmds = torch.argmax(seq[..., :CMDS_CLASSES], dim=-1)
-    #     args = seq[..., CMDS_CLASSES:]
-    #     svgtensor = SVGTensor.from_cmd_args(cmds, args)
-    #     svgtensor.unpad()  # removes eos (and padding, but the preprocessed sequence have no padding)
-    #     svgtensor.drop_sos()
-    #     svgtensor_data = svgtensor.data
-    # else:
-    svgtensor_data = svgtensor_data[1:-1]  # Remove SOS and EOS
+# cmds_grouped_onehot = torch.nn.functional.one_hot(cmds_grouped.to(torch.int64), num_classes=CMDS_CLASSES)
+def svgtensor_data_to_svg_file(svgtensor_data, output_svg_path, tmp_fix=True):
+    if tmp_fix:  # TODO TMP fix until I create svgtensors instead of my preprocessed sequences
+        seq = svgtensor_data
+        cmds_grouped = torch.argmax(seq[..., :CMDS_CLASSES], dim=-1)
+        args_grouped = seq[..., CMDS_CLASSES:]
+        svgtensor = SVGTensor.from_cmd_args(cmds_grouped, args_grouped)
+        svgtensor.unpad()  # removes eos (and padding, but the preprocessed sequence have no padding)
+        svgtensor.drop_sos()
+        svgtensor_data = svgtensor.data
+    else:
+        svgtensor_data = svgtensor_data[1:-1]  # Remove SOS and EOS
 
-    raise (Exception())
     svg = SVG.from_tensor(svgtensor_data, viewbox=Bbox(24))
     svg.split_paths()
     svg.save_svg(output_svg_path)
