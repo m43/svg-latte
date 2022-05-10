@@ -19,6 +19,7 @@ from svglatte.models.deepsvg_encoder import DeepSVGEncoder
 from svglatte.models.lstm_layernorm import LayerNormLSTMEncoder
 from svglatte.models.neural_rasterizer.cnn_decoder import Decoder
 from svglatte.models.neural_rasterizer.neural_rasterizer import NeuralRasterizer
+from svglatte.models.sequence_average_encoder import SequenceAverageEncoder
 from svglatte.utils.util import AttrDict, nice_print, HORSE
 
 
@@ -35,9 +36,10 @@ def get_parser_main_model():
     parser.add_argument('--early_stopping_patience', type=int, default=72)
 
     # optimizer
-    # parser.add_argument('--lr', type=float, default=0.0002, help='learning rate')
-    parser.add_argument('--lr', type=float, default=0.00042, help='learning rate')  # auto_lr_find:0.0004365158322401656
-    # parser.add_argument('--lr', type=float, default=0.0069, help='learning rate')  # auto_lr_find:0.006918309709189364
+    parser.add_argument('--encoder_lr', type=float, default=0.00042, help='encoder learning rate')
+    parser.add_argument('--encoder_weight_decay', type=float, default=0.0, help='encoder weight decay')
+    parser.add_argument('--decoder_lr', type=float, default=0.00042, help='decoder learning rate')
+    parser.add_argument('--decoder_weight_decay', type=float, default=0.0, help='decoder weight decay')
     parser.add_argument('--auto_lr_find', action='store_true', help='Use the auto lr finder from Pytorch Lightning')
     parser.add_argument('--warmup_steps', type=int, default=720, help='number of warmup steps')
     parser.add_argument('--scheduler_decay_epochs', type=int, default=30,
@@ -46,7 +48,6 @@ def get_parser_main_model():
     parser.add_argument('--beta1', type=float, default=0.9, help='beta1 of Adam optimizer')
     parser.add_argument('--beta2', type=float, default=0.999, help='beta2 of Adam optimizer')
     parser.add_argument('--eps', type=float, default=1e-8, help='Adam epsilon')
-    parser.add_argument('--weight_decay', type=float, default=0.0, help='weight decay')
     parser.add_argument('--gradient_clip_val', type=float, default=None, help='gradient clipping value')
 
     # loss weight
@@ -302,11 +303,15 @@ def main(config):
 
     adam_optimizer_args = AttrDict()
     adam_optimizer_args.update({
-        "lr": config.lr,
+        # "lr": config.lr,
+        "encoder_lr": config.encoder_lr,
+        "encoder_weight_decay": config.encoder_weight_decay,
+        "decoder_lr": config.decoder_lr,
+        "decoder_weight_decay": config.decoder_weight_decay,
         "beta1": config.beta1,
         "beta2": config.beta2,
         "eps": config.eps,
-        "weight_decay": config.weight_decay,
+        # "weight_decay": config.weight_decay,
         "warmup_steps": config.warmup_steps,
         "scheduler_decay_epochs": config.scheduler_decay_epochs,
         "scheduler_decay_gamma": config.scheduler_decay_gamma,
@@ -346,7 +351,8 @@ def main(config):
     wandb_logger = WandbLogger(
         project=config.experiment_name,
         version=config.experiment_version.replace("=", "-"),
-        settings=wandb.Settings(start_method='thread'),
+        # settings=wandb.Settings(start_method='thread'),
+        settings=wandb.Settings(start_method='fork'),
     )
     wandb_logger.watch(neural_rasterizer)
     tb_logger = TensorBoardLogger("logs", name=config.experiment_name, version=config.experiment_version, )
@@ -381,7 +387,6 @@ def main(config):
             # strategy=strategy,
             strategy='dp',
             # strategy=DDPStrategy(find_unused_parameters=False),
-            # resume_from_checkpoint="logs/svglatte_svglatte__2022.04.09_16.04.39/3ireo6s9_0/checkpoints/epoch=161-step=211572.ckpt",
             # num_sanity_val_steps=0,
             # fast_dev_run=True,
             # limit_train_batches=10,
@@ -397,7 +402,10 @@ def main(config):
             callbacks=callbacks,
         )
     if config.auto_lr_find:
-        print("trainer.tune() to automatically find the learning rate")
+        warnings.warn("Pytorch Lightning 1.6.1. does not support multiple optimizers (or multiple"
+                      "parameter group learning rates) for auto learning rate finding.")
+        print(f"Calling trainer.tune() to automatically find the learning rate")
+        print(f"config.auto_lr_find={config.auto_lr_find}")
         trainer.tune(neural_rasterizer, dm)
         print("Finished tuning")
     trainer.fit(neural_rasterizer, dm, ckpt_path=config.checkpoint_path)

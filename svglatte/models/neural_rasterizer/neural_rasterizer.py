@@ -31,8 +31,6 @@ class NeuralRasterizer(pl.LightningModule):
     ):
         super(NeuralRasterizer, self).__init__()
         self.optimizer_args = optimizer_args
-        self.lr = self.optimizer_args.lr
-        del self.optimizer_args.lr
         self.dataset_name = dataset_name
 
         # sequence encoder
@@ -72,9 +70,20 @@ class NeuralRasterizer(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
-            self.parameters(),
-            lr=self.lr, betas=(self.optimizer_args.beta1, self.optimizer_args.beta2),
-            eps=self.optimizer_args.eps, weight_decay=self.optimizer_args.weight_decay,
+            [
+                {
+                    "params": self.encoder.parameters(),
+                    "lr": self.optimizer_args.encoder_lr,
+                    "weight_decay": self.optimizer_args.encoder_weight_decay,
+                },
+                {
+                    "params": self.decoder.parameters(),
+                    "lr": self.optimizer_args.decoder_lr,
+                    "weight_decay": self.optimizer_args.decoder_weight_decay,
+                },
+            ],
+            betas=(self.optimizer_args.beta1, self.optimizer_args.beta2),
+            eps=self.optimizer_args.eps,
         )
 
         scheduler_lr = {
@@ -105,7 +114,7 @@ class NeuralRasterizer(pl.LightningModule):
         if self.trainer.global_step < self.optimizer_args.warmup_steps:
             lr_scale = min(1.0, float(self.trainer.global_step + 1) / self.optimizer_args.warmup_steps)
             for pg in optimizer.param_groups:
-                pg["lr"] = lr_scale * self.lr
+                pg["lr"] = lr_scale * pg["initial_lr"]  # self.lr
 
     def training_step(self, train_batch, batch_idx, subset="train"):
         trg_seq_padded, trg_img, lengths = train_batch
@@ -226,5 +235,11 @@ class NeuralRasterizer(pl.LightningModule):
     def test_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
         self.training_epoch_end(outputs, "test")
 
-    def on_epoch_start(self):
+    def on_train_epoch_start(self) -> None:
+        print('\n')
+
+    def on_validation_epoch_start(self) -> None:
+        print('\n')
+
+    def on_test_epoch_start(self) -> None:
         print('\n')
