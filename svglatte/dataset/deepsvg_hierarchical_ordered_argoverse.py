@@ -31,9 +31,9 @@ class Config(Config):
         self.pretrained_path = "logs/models/dataset/deepsvg_hierarchical_ordered_argoverse/best.pth.tar"
 
         # Argoverse specific
-        self.max_num_groups = 15  # 120
-        self.max_seq_len = 26  # 200
-        self.max_total_len = 227  # 2000
+        self.max_num_groups = 15
+        self.max_seq_len = 30
+        self.max_total_len = self.max_num_groups * self.max_seq_len
         self.nb_augmentations = 1
 
         self.model_cfg.max_num_groups = self.max_num_groups
