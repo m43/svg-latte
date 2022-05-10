@@ -238,6 +238,8 @@ def get_encoder(config, deepsvg_cfg=None):
         encoder = LayerNormLSTMEncoder(**encoder_args)
     elif config.encoder_type == "deepsvg":
         encoder = DeepSVGEncoder(deepsvg_cfg)
+    elif config.encoder_type == "averager_baseline":
+        encoder = SequenceAverageEncoder(encoder_args.lstm_input_size)
     else:
         encoder = SequenceEncoder(**encoder_args)
 
