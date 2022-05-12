@@ -283,10 +283,10 @@ class ArgoverseDataModule(pl.LightningDataModule):
             self.val_ds = ArgoverseDataset(os.path.join(data_root, f"val"), augment=augment_val, **kwargs)
             self.test_ds = ArgoverseDataset(os.path.join(data_root, f"test"), augment=augment_test, **kwargs)
 
-        def pad_collate_fn(batch):
+        def collate_fn(batch):
             return pad_collate_fn(batch, pad_val)
 
-        self.collate_fn = pad_collate_fn if not kwargs['return_deepsvg_model_input'] else None
+        self.collate_fn = collate_fn if not kwargs['return_deepsvg_model_input'] else None
 
         self.train_mean = self.train_ds.get_sequences_mean()
         self.train_mean[:CMDS_CLASSES] = 0.
