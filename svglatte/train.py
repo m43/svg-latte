@@ -101,6 +101,10 @@ def get_parser_main_model():
     parser.add_argument('--deepsvg_max_seq_len', type=int, default=200, help='maximum length of sequence')
     parser.add_argument('--deepsvg_max_total_len', type=int, default=2000, help='maximum total length of an svg')
     ## argoverse
+    parser.add_argument('--argoverse_cached_sequences_format', type=str,
+                        default="onehot_grouped_commands_concatenated_with_grouped_arguments",
+                        choices=["onehot_grouped_commands_concatenated_with_grouped_arguments", "svgtensor_data"],
+                        help="What is the format of the tensors in the cached sequences.")
     parser.add_argument('--argoverse_data_root', type=str, default='data/argoverse/')
     parser.add_argument('--argoverse_rendered_images_width', type=int, default=64, help='Height of rendered images')
     parser.add_argument('--argoverse_rendered_images_height', type=int, default=64, help='Width of rendered images')
@@ -144,6 +148,8 @@ def get_parser_main_model():
                         help='Magnitude of random translations. Augmentation will make a random translation (dx, dy)'
                              ' where dx and dy are taken independently and uniformly at random'
                              ' in [-translate, translate].')
+    parser.add_argument('--argoverse_canonicalize_svg', action="store_true",
+                        help='Canonicalize the SVG during preprocessing.')
     return parser
 
 
@@ -160,6 +166,10 @@ def get_dataset(config):
             'deepsvg_max_seq_len': deepsvg_encoder_config.max_seq_len,
             'deepsvg_max_total_len': deepsvg_encoder_config.max_total_len,
             'deepsvg_pad_val': -1,
+        })
+    else:
+        deepsvg_encoder_config_for_argoverse.update({
+            'return_deepsvg_model_input': False,
         })
 
     if config.dataset == "deepvecfont":
@@ -187,6 +197,7 @@ def get_dataset(config):
         )
     elif config.dataset == "argoverse":
         dm = argoverse_dataset.ArgoverseDataModule(
+            cached_sequences_format=config.argoverse_cached_sequences_format,
             data_root=config.argoverse_data_root,
             rendered_images_width=config.argoverse_rendered_images_width,
             rendered_images_height=config.argoverse_rendered_images_height,
@@ -208,6 +219,7 @@ def get_dataset(config):
             augment_scale_max=config.argoverse_augment_scale_max,
             augment_translate=config.argoverse_augment_translate,
             numericalize=config.argoverse_numericalize,
+            canonicalize_svg=config.argoverse_canonicalize_svg,
             **deepsvg_encoder_config_for_argoverse
         )
         seq_feature_dim = dm.train_ds.get_number_of_sequence_dimensions()
@@ -282,6 +294,17 @@ def main(config):
             output_padding_list=(1, 1, 1, 1, 1, 1, 1, 1),
             norm_layer_name=config.decoder_norm_layer_name,
             n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,  # 64
+        )
+    elif config.argoverse_rendered_images_width == 256 and config.argoverse_rendered_images_height == 256:
+        decoder = Decoder(
+            in_channels=encoder.output_size,
+            out_channels=1,
+            kernel_size_list=(3, 3, 3, 5, 5, 5, 5, 5),
+            stride_list=(2, 2, 2, 2, 2, 2, 2, 2),
+            padding_list=(1, 1, 1, 2, 2, 2, 2, 2),
+            output_padding_list=(1, 1, 1, 1, 1, 1, 1, 1),
+            norm_layer_name=config.decoder_norm_layer_name,
+            n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,
         )
     elif config.argoverse_rendered_images_width == 512 and config.argoverse_rendered_images_height == 512:
         decoder = Decoder(
