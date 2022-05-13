@@ -1,0 +1,3 @@
+[submodule "deepsvg"]
+	path = deepsvg
+	url = https://github.com/m43/deepsvg
