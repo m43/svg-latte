@@ -542,5 +542,5 @@ class AttentiveFullyConnectedBiLSTM(nn.Module):
             input_sequences = output_sequences
         output_sequences = torch.transpose(output_sequences, 0, 1)
 
-        pdb.set_trace()
+        # TODO
         return output_sequences, (h, c)

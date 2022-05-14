@@ -259,23 +259,17 @@ def get_encoder(config, deepsvg_cfg=None):
     return encoder
 
 
-def main(config):
-    pl.seed_everything(72)
-
-    dm, seq_feature_dim, deepsvg_encoder_config = get_dataset(config)
-    config.lstm_input_size = seq_feature_dim
-
-    encoder = get_encoder(config, deepsvg_encoder_config)
+def get_decoder(config, encoder_output_size):
     if config.argoverse_rendered_images_width == 64 and config.argoverse_rendered_images_height == 64:
         decoder = Decoder(
-            in_channels=encoder.output_size,
+            in_channels=encoder_output_size,
             out_channels=1,
             norm_layer_name=config.decoder_norm_layer_name,
             n_filters_in_last_conv_layer=config.decoder_n_filters_in_last_conv_layer,
         )
     elif config.argoverse_rendered_images_width == 128 and config.argoverse_rendered_images_height == 128:
         decoder = Decoder(
-            in_channels=encoder.output_size,
+            in_channels=encoder_output_size,
             out_channels=1,
             kernel_size_list=(3, 3, 3, 5, 5, 5, 5),
             stride_list=(2, 2, 2, 2, 2, 2, 2),
@@ -286,7 +280,7 @@ def main(config):
         )
     elif config.argoverse_rendered_images_width == 200 and config.argoverse_rendered_images_height == 200:
         decoder = Decoder(
-            in_channels=encoder.output_size,
+            in_channels=encoder_output_size,
             out_channels=1,
             kernel_size_list=(3, 3, 3, 3, 3, 3, 5, 5),
             stride_list=(2, 2, 2, 2, 2, 2, 2, 2),
@@ -297,7 +291,7 @@ def main(config):
         )
     elif config.argoverse_rendered_images_width == 256 and config.argoverse_rendered_images_height == 256:
         decoder = Decoder(
-            in_channels=encoder.output_size,
+            in_channels=encoder_output_size,
             out_channels=1,
             kernel_size_list=(3, 3, 3, 5, 5, 5, 5, 5),
             stride_list=(2, 2, 2, 2, 2, 2, 2, 2),
@@ -308,7 +302,7 @@ def main(config):
         )
     elif config.argoverse_rendered_images_width == 512 and config.argoverse_rendered_images_height == 512:
         decoder = Decoder(
-            in_channels=encoder.output_size,
+            in_channels=encoder_output_size,
             out_channels=1,
             kernel_size_list=(3, 3, 3, 3, 3, 5, 5, 5, 5),
             stride_list=(2, 2, 2, 2, 2, 2, 2, 2, 2),
@@ -321,9 +315,11 @@ def main(config):
         raise Exception(
             f"Image size {config.argoverse_rendered_images_width}x{config.argoverse_rendered_images_height}"
             f" not supported")
-    assert config.argoverse_rendered_images_width == decoder.image_sizes[-1]
-    assert config.argoverse_rendered_images_height == decoder.image_sizes[-1]
+    return decoder
 
+def get_neural_rasterizer(config, deepsvg_encoder_config=None):
+    encoder = get_encoder(config, deepsvg_encoder_config)
+    decoder = get_decoder(config, encoder.output_size)
     adam_optimizer_args = AttrDict()
     adam_optimizer_args.update({
         # "lr": config.lr,
@@ -339,7 +335,6 @@ def main(config):
         "scheduler_decay_epochs": config.scheduler_decay_epochs,
         "scheduler_decay_gamma": config.scheduler_decay_gamma,
     })
-
     neural_rasterizer = NeuralRasterizer(
         encoder=encoder,
         decoder=decoder,
@@ -347,11 +342,25 @@ def main(config):
         l1_loss_w=config.l1_loss_w,
         cx_loss_w=config.cx_loss_w,
         dataset_name=config.dataset,
-        train_mean=dm.train_mean,
-        train_std=dm.train_std,
+        train_mean=None,
+        train_std=None,
         standardize_input_sequences=config.standardize_input_sequences,
     )
+    return neural_rasterizer
+
+
+def main(config):
+    pl.seed_everything(72)
+
+    dm, seq_feature_dim, deepsvg_encoder_config = get_dataset(config)
+    config.lstm_input_size = seq_feature_dim
+
+    neural_rasterizer = get_neural_rasterizer(config, deepsvg_encoder_config)
     print(neural_rasterizer)
+
+    assert config.argoverse_rendered_images_width == neural_rasterizer.decoder.image_sizes[-1]
+    assert config.argoverse_rendered_images_height == neural_rasterizer.decoder.image_sizes[-1]
+
 
     if config.experiment_version is None:
         config.experiment_version = f"s5_{config.dataset[:2]}" \
@@ -396,8 +405,6 @@ def main(config):
         learning_rate_monitor_callback]
 
     if torch.cuda.is_available() and config.gpus != 0:
-        # strategy = 'dp' if config.cx_loss_w > 0.0 else DDPStrategy(find_unused_parameters=False),
-
         trainer = Trainer(
             max_epochs=config.n_epochs,
             default_root_dir="logs",
@@ -407,15 +414,7 @@ def main(config):
             auto_lr_find=config.auto_lr_find,
             gpus=config.gpus,
             accelerator="gpu",
-            # strategy=strategy,
             strategy='dp',
-            # strategy=DDPStrategy(find_unused_parameters=False),
-            # num_sanity_val_steps=0,
-            # fast_dev_run=True,
-            # limit_train_batches=10,
-            # limit_val_batches=10,
-            # detect_anomaly=True,
-            # profiler="simple",
         )
     else:
         trainer = Trainer(

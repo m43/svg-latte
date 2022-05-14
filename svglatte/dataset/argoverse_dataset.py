@@ -1,27 +1,19 @@
 import io
 import os
 import random
-from collections import defaultdict
-from concurrent import futures
-from datetime import datetime
 
 import cairosvg
 import numpy as np
-import pandas as pd
 import pytorch_lightning as pl
 import torch
-import torchvision
 from PIL import Image
-from matplotlib import pyplot as plt
-from torch.utils.data import Dataset, DataLoader
-from tqdm import tqdm
-
-from deepsvg.dataset.preprocess import main
-from deepsvg.difflib.tensor import SVGTensor
 from deepsvg.svg_dataset import SVGDataset
+from torch.utils.data import Dataset, DataLoader
+
+from deepsvg.difflib.tensor import SVGTensor
 from deepsvg.svglib.geom import Bbox, Angle, Point
 from deepsvg.svglib.svg import SVG
-from svglatte.utils.util import pad_collate_fn, Object, ensure_dir
+from svglatte.utils.util import pad_collate_fn
 
 CMDS_CLASSES = 7
 ARGS_GROUPED_DIM = 13  # 11 + 2
@@ -124,14 +116,14 @@ class ArgoverseDataset(Dataset):
             # - 14 is the start point y coordinate of the line
             # - 16+2=18 is the end point x coordinate of the line
             # - 17+2=19 is the end point y coordinate of the line
-            self.SEQUENCE_FEATURE_DIMENSTIONS = [0, 1, 4, 5, 12, 13, 16 + 2, 17 + 2]
+            self.sequence_feature_dimenstions = [0, 1, 4, 5, 12, 13, 16 + 2, 17 + 2]
             # Sanity check:
             # torch.cat([s.sum(0)[None, :] for s in self.sequences]).sum(0)
             # tensor([512979., 2584927., 0., 0., 39472., 39472.,
             #         0., -78944., -78944., -78944., -78944., -78944., START_POS_X, START_POS_Y,
             #         -3176850., -3176850., -3176850., -3176850., 28979378., 37385944.])
         else:
-            self.SEQUENCE_FEATURE_DIMENSTIONS = range(CMDS_CLASSES + ARGS_GROUPED_DIM)
+            self.sequence_feature_dimenstions = range(CMDS_CLASSES + ARGS_GROUPED_DIM)
 
     @staticmethod
     def draw_svg(
@@ -226,14 +218,14 @@ class ArgoverseDataset(Dataset):
         assert length == debug_length
         assert CMDS_CLASSES + ARGS_GROUPED_DIM == len(seq[0])
 
-        seq = seq[:, self.SEQUENCE_FEATURE_DIMENSTIONS]
+        seq = seq[:, self.sequence_feature_dimenstions]
         return seq, rendered_image, length
 
     def __len__(self):
         return len(self._sequences)
 
     def get_number_of_sequence_dimensions(self):
-        return len(self.SEQUENCE_FEATURE_DIMENSTIONS)
+        return len(self.sequence_feature_dimenstions)
 
     def _render_on_the_fly(self, idx, svg):
         rendered_image = ArgoverseDataset.svg_to_img(
@@ -245,11 +237,11 @@ class ArgoverseDataset(Dataset):
 
     def get_sequences_mean(self):
         return torch.tensor([0])
-        return self._seq_mean[self.SEQUENCE_FEATURE_DIMENSTIONS]
+        return self._seq_mean[self.sequence_feature_dimenstions]
 
     def get_sequences_std(self):
         return torch.tensor([1])
-        return self._seq_std[self.SEQUENCE_FEATURE_DIMENSTIONS]
+        return self._seq_std[self.sequence_feature_dimenstions]
 
     def _augment(self, svg):
         if self.augment_shear_degrees != 0.0:
@@ -374,222 +366,3 @@ class ArgoverseDataModule(pl.LightningDataModule):
             pin_memory=False,
             persistent_workers=True if self.test_workers > 0 else False,
         )
-
-
-# cmds_grouped_onehot = torch.nn.functional.one_hot(cmds_grouped.to(torch.int64), num_classes=CMDS_CLASSES)
-def svgtensor_data_to_svg_file(
-        svgtensor_data,
-        output_svg_path,
-        cache_format=ArgoverseDataset.SVGTENSOR_DATA_CACHE_FORMAT,
-):
-    if cache_format == ArgoverseDataset.GROUPED_CACHE_FORMAT:
-        seq = svgtensor_data
-        cmds_grouped = torch.argmax(seq[..., :CMDS_CLASSES], dim=-1)
-        args_grouped = seq[..., CMDS_CLASSES:]
-        svgtensor = SVGTensor.from_cmd_args(cmds_grouped, args_grouped)
-        svgtensor.unpad()  # removes eos (and padding, but the preprocessed sequence have no padding)
-        svgtensor.drop_sos()
-        svgtensor_data = svgtensor.data
-    elif cache_format == ArgoverseDataset.SVGTENSOR_DATA_CACHE_FORMAT:
-        svgtensor_data = svgtensor_data[1:-1]  # Remove SOS and EOS
-    else:
-        raise RuntimeError(f"Unrecognized cache format: '{cache_format}'")
-
-    svg = SVG.from_tensor(svgtensor_data, viewbox=Bbox(24))
-    svg.split_paths()
-    svg.save_svg(output_svg_path)
-
-
-def argoverse_to_svg_dataset(caching_path_sequences, output_folder, max_workers):
-    # Prepare arguments for DeepSVG's main
-    args = Object()
-    args.data_folder = os.path.join(output_folder, "svgs")
-    args.output_folder = os.path.join(output_folder, "svgs_simplified")
-    args.output_meta_file = os.path.join(output_folder, "svg_meta.csv")
-    args.workers = max_workers
-    ensure_dir(args.data_folder)
-    ensure_dir(args.output_folder)
-
-    # Load the svgtensors
-    assert os.path.isfile(caching_path_sequences)
-    svgtensor_data_list = torch.load(caching_path_sequences)
-
-    # Create SVGs from svgtensors and save them to disk
-    with futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        with tqdm(total=len(svgtensor_data_list)) as pbar:
-            preprocess_requests = [
-                executor.submit(svgtensor_data_to_svg_file, svgtensor_data, os.path.join(args.data_folder, f"{i}.svg"))
-                for i, svgtensor_data in enumerate(svgtensor_data_list)
-            ]
-            for f in futures.as_completed(preprocess_requests):
-                pbar.update(1)
-
-    # Use DeepSVG's preprocessing functionality
-    main(args)
-
-
-def main1():
-    """Plotting a few images"""
-    print("load datasets")
-    val_ds_1 = ArgoverseDataset(
-        caching_path_prefix="/home/user72/Desktop/argoverse1/val",
-        rendered_images_width=512,
-        rendered_images_height=512,
-        render_on_the_fly=True,
-        remove_redundant_features=True,
-        numericalize=False,
-        augment=False,
-    )
-    val_ds_2 = ArgoverseDataset(
-        caching_path_prefix="/home/user72/Desktop/argoverse2/val",
-        rendered_images_width=512,
-        rendered_images_height=512,
-        render_on_the_fly=True,
-        remove_redundant_features=True,
-        numericalize=False,
-        augment=True,
-    )
-    print("loaded")
-
-    rendered_images = [val_ds_1[-1][1]]
-    rendered_images += [val_ds_2[-1][1] for _ in range(63)]
-
-    grid = torchvision.utils.make_grid(rendered_images)
-    plt.imsave(
-        f"/home/user72/Desktop/{datetime.now().strftime('%m.%d_%H.%M.%S')}.png",
-        grid.permute(1, 2, 0).numpy()
-    )
-    plt.figure(dpi=300)
-    plt.imshow(grid.permute(1, 2, 0))
-    plt.show()
-    plt.close()
-
-    print("done")
-
-
-def main2():
-    """Verify that all sequences are inside the 24 viewbox"""
-    for ds_name in ["val", "test", "train"]:  # val is the smallest, train the largest subset.
-        print(f"Loading subset: {ds_name}")
-        ds = ArgoverseDataset(
-            caching_path_prefix=f"/home/user72/Desktop/argoverse1/{ds_name}",
-            rendered_images_width=64,
-            rendered_images_height=64,
-            render_on_the_fly=True,
-            remove_redundant_features=True,
-            numericalize=False,
-            augment=False,
-        )
-        print(f"Loaded the subset: {ds_name}")
-        print(f"Number of datapoints: {len(ds._sequences)}")
-
-        def set_unused_to_some_constant(seq, const=5):
-            # I put five because I know that my data has a veiwbox of 24, so the xy coordinates
-            # are all in the box (0,0)-(24,24).
-            return (seq != -1) * seq + (seq == -1) * const
-
-        print(torch.cat([set_unused_to_some_constant(seq).max(0).values[None, :] for seq in ds._sequences]).max(0))
-        print(torch.cat([set_unused_to_some_constant(seq).min(0).values[None, :] for seq in ds._sequences]).min(0))
-
-        print(f"Done with {ds}")
-        print()
-        print()
-
-
-def main3():
-    """Convert Argoverse to a deepsvg.svg_dataset.SVGDataset so that it can be evaluated with DeepSVG."""
-    # for subset in ["val", "test", "train"]:
-    #     caching_path = f"/home/user72/Desktop/argoverse1/{subset}.sequences.torchsave"
-    #     output_folder = f"/mnt/terra/xoding/epfl-vita/svg-latte/data/argoverse_dummy/{subset}"
-    #     argoverse_to_svg_dataset(caching_path, output_folder, max_workers=8)
-
-    for subset in ["val", "test", "train"]:
-        caching_path = f"/scratch/izar/rajic/svgnet-hossein/cache/argo_4/{subset}.sequences.torchsave"
-        output_folder = f"/scratch/izar/rajic/svgnet-hossein/cache/argo_4/svgdataset/{subset}"
-        argoverse_to_svg_dataset(caching_path, output_folder, max_workers=40)
-
-
-def main4():
-    """
-    Count the real maximum values for max_num_groups, max_seq_len, and max_total_len.
-    They might be lower than the numbers used when creating Argoverse in SVG-Net, i.e.
-        self.max_num_groups = 120
-        self.max_seq_len = 200
-        self.max_total_len = 2000
-    If the numbers are really lower, then it will be easier to evaluate them with DeepSVG.
-    """
-    for subset, csv_path in [
-        ("train", "data/argoverse/train/svg_meta.csv"),
-        ("val", "data/argoverse/val/svg_meta.csv"),
-        ("test", "data/argoverse/test/svg_meta.csv"),
-        # ("val", "data/argoverse10/val/svg_meta.csv"),
-    ]:
-        print(f"Subset: {subset}")
-        df = pd.read_csv(csv_path)
-        print(f"Dataset length: {len(df)}")
-        print(f"nb_groups \\in [{df.nb_groups.min()},{df.nb_groups.max()}]")
-        print(f"seq_len \\in [{df.max_len_group.min()},{df.max_len_group.max()}]")
-        print(f"total_len \\in [{df.total_len.min()},{df.total_len.max()}]")
-        print()
-
-    """
-    Subset: train
-    Dataset length: 205942
-    nb_groups \'in [2,15]
-    seq_len \'in [4,25]
-    total_len \'in [12,227]
-    
-    Subset: val
-    Dataset length: 39472
-    nb_groups \'in [1,15]
-    seq_len \'in [3,26]
-    total_len \'in [5,227]
-    
-    Subset: test
-    Dataset length: 78143
-    nb_groups \\in [4,15]
-    seq_len \\in [3,25]
-    total_len \\in [16,213]
-    """
-
-
-def main5():
-    """Visualize different viewboxes for images of different resolution."""
-
-    datetime_str = datetime.now().strftime('%m.%d_%H.%M.%S')
-    resolutions = [64, 128, 256, 512]
-    viewbox_sizes = [24, 64, 128, 256]
-    viewbox_sizes_str = "-".join(map(str, viewbox_sizes))
-    for res in resolutions:
-        rendered_images = defaultdict(list)
-        for viewbox in viewbox_sizes:
-            ds = ArgoverseDataset(
-                caching_path_prefix="/home/user72/Desktop/argoverse1/val",
-                rendered_images_width=res,
-                rendered_images_height=res,
-                render_on_the_fly=True,
-                remove_redundant_features=True,
-                numericalize=False,
-                augment=False,
-                viewbox=viewbox,
-                zoom_preprocess_factor=0.70710678118,
-            )
-            rendered_images["img1"].append(ds[0][1])
-            rendered_images["img2"].append(ds[-1][1])
-
-        for id, imgs in rendered_images.items():
-            grid = torchvision.utils.make_grid(imgs, nrow=int(np.sqrt(len(viewbox_sizes))))
-            plt.imsave(
-                f"/home/user72/Desktop/viewbox/{datetime_str}_{id}_{res}_{viewbox_sizes_str}.png",
-                grid.permute(1, 2, 0).numpy()
-            )
-
-    print("done")
-
-
-if __name__ == '__main__':
-    # main1()
-    # main2()
-    main3()
-    # main4()
-    # main5()

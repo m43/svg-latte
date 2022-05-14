@@ -48,22 +48,6 @@ class NeuralRasterizer(pl.LightningModule):
         if self.cx_loss_w > 0.0:
             self.vggcxlossfunc = VGGContextualLoss()
 
-    # TODO what does this method do
-    # def init_state_input(self, sampled_bottleneck):
-    #     init_state_hidden = []
-    #     init_state_cell = []
-    #     for i in range(self.num_hidden_layers):
-    #         unbottleneck = self.unbottlenecks[i](sampled_bottleneck)
-    #         (h0, c0) = unbottleneck[:, :self.unbottleneck_dim // 2], unbottleneck[:, self.unbottleneck_dim // 2:]
-    #         init_state_hidden.append(h0.unsqueeze(0))
-    #         init_state_cell.append(c0.unsqueeze(0))
-    #     init_state_hidden = torch.cat(init_state_hidden, dim=0)
-    #     init_state_cell = torch.cat(init_state_cell, dim=0)
-    #     init_state = {}
-    #     init_state['hidden'] = init_state_hidden
-    #     init_state['cell'] = init_state_cell
-    #     return init_state
-
     def forward(self, trg_seq_padded, lengths):
         latte = self.encoder(trg_seq_padded, lengths)
         return latte
