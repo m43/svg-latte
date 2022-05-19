@@ -110,8 +110,6 @@ def get_parser_main_model():
     parser.add_argument('--argoverse_rendered_images_height', type=int, default=64, help='Width of rendered images')
     parser.add_argument('--argoverse_fast_run', action='store_true',
                         help='To gave a faster run, we use the smallest dataset subset for all datasets')
-    parser.add_argument('--argoverse_render_onthefly', action='store_true',
-                        help='Render images of any size on-the-fly, i.e. do not used the cached images')
     parser.add_argument('--argoverse_keep_redundant_features', action='store_true',
                         help='Keep the redundant features in svg tensor sequences. These features are redundant '
                              'because (1.) DeepSVG svg tensors have a few unused features, we keep them internally to'
@@ -202,7 +200,6 @@ def get_dataset(config):
             rendered_images_width=config.argoverse_rendered_images_width,
             rendered_images_height=config.argoverse_rendered_images_height,
             batch_size=config.batch_size,
-            render_on_the_fly=config.argoverse_render_onthefly,
             remove_redundant_features=not config.argoverse_keep_redundant_features,
             fast_run=config.argoverse_fast_run,
             train_workers=config.argoverse_train_workers,
@@ -317,6 +314,7 @@ def get_decoder(config, encoder_output_size):
             f" not supported")
     return decoder
 
+
 def get_neural_rasterizer(config, deepsvg_encoder_config=None):
     encoder = get_encoder(config, deepsvg_encoder_config)
     decoder = get_decoder(config, encoder.output_size)
@@ -361,7 +359,6 @@ def main(config):
     assert config.argoverse_rendered_images_width == neural_rasterizer.decoder.image_sizes[-1]
     assert config.argoverse_rendered_images_height == neural_rasterizer.decoder.image_sizes[-1]
 
-
     if config.experiment_version is None:
         config.experiment_version = f"s5_{config.dataset[:2]}" \
                                     f"_{'aug' if config.argoverse_augment_train else ''}" \
@@ -404,6 +401,8 @@ def main(config):
         model_checkpoint_callback,
         learning_rate_monitor_callback]
 
+    print("Configuration:")
+    print(config)
     if torch.cuda.is_available() and config.gpus != 0:
         trainer = Trainer(
             max_epochs=config.n_epochs,

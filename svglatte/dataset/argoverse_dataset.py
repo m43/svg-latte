@@ -7,10 +7,10 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 from PIL import Image
-from deepsvg.svg_dataset import SVGDataset
 from torch.utils.data import Dataset, DataLoader
 
 from deepsvg.difflib.tensor import SVGTensor
+from deepsvg.svg_dataset import SVGDataset
 from deepsvg.svglib.geom import Bbox, Angle, Point
 from deepsvg.svglib.svg import SVG
 from svglatte.utils.util import pad_collate_fn
@@ -28,11 +28,10 @@ class ArgoverseDataset(Dataset):
 
     def __init__(
             self,
-            caching_path_prefix,
-            cached_sequences_format,
+            caching_path_prefix=None,
+            cached_sequences_format=SVGTENSOR_DATA_CACHE_FORMAT,
             rendered_images_width=64,
             rendered_images_height=64,
-            render_on_the_fly=True,
             remove_redundant_features=True,
             viewbox=24,
             canonicalize_svg=False,
@@ -51,12 +50,8 @@ class ArgoverseDataset(Dataset):
             deepsvg_max_total_len=None,
             deepsvg_pad_val=None,
     ):
-        self.cached_sequences_format = cached_sequences_format
-        if self.cached_sequences_format not in ArgoverseDataset.SUPPORTED_CACHED_SEQUENCES_FORMAT:
-            raise ValueError(f"Unrecognized (or misconfigured) cache format: {self.cached_sequences_format}."
-                             f" Cache format must be one of {ArgoverseDataset.SUPPORTED_CACHED_SEQUENCES_FORMAT}.")
+        self._init_cache(caching_path_prefix, cached_sequences_format)
 
-        self.render_on_the_fly = render_on_the_fly
         self.rendered_images_width = rendered_images_width
         self.rendered_images_height = rendered_images_height
 
@@ -80,29 +75,6 @@ class ArgoverseDataset(Dataset):
         self.deepsvg_max_total_len = deepsvg_max_total_len
         self.deepsvg_pad_val = deepsvg_pad_val
 
-        self.caching_path_prefix = caching_path_prefix
-        self.caching_path_sequences = f"{caching_path_prefix}.sequences.torchsave"
-        # self.caching_path_seq_mean = f"{caching_path_prefix}.seq_mean.torchsave"
-        # self.caching_path_seq_std = f"{caching_path_prefix}.seq_std.torchsave"
-        if not render_on_the_fly:
-            self.caching_path_rendered_images = (
-                f"{caching_path_prefix}.rendered_images.{rendered_images_width}x{rendered_images_height}.torchsave")
-
-        assert os.path.isfile(self.caching_path_sequences)
-        # assert os.path.isfile(self.caching_path_seq_mean)
-        # assert os.path.isfile(self.caching_path_seq_std)
-        if not render_on_the_fly:
-            assert os.path.isfile(self.caching_path_rendered_images)
-
-        self._sequences = torch.load(self.caching_path_sequences)
-        self._seq_mean = torch.zeros((self._sequences[0].shape[-1]))  # TODO not cached, thus dummy value
-        self._seq_std = torch.zeros((self._sequences[0].shape[-1]))  # TODO not cached, thus dummy value
-        # self._seq_mean = torch.load(self.caching_path_seq_mean)
-        # self._seq_std = torch.load(self.caching_path_seq_std)
-        if not render_on_the_fly:
-            self._rendered_images = torch.load(self.caching_path_rendered_images)
-            assert len(self._sequences) == len(self._rendered_images)
-
         if self.remove_redundant_features:
             # Remove redundant features:
             # 1. DeepSVG has unused features in its standard format,
@@ -124,6 +96,48 @@ class ArgoverseDataset(Dataset):
             #         -3176850., -3176850., -3176850., -3176850., 28979378., 37385944.])
         else:
             self.sequence_feature_dimenstions = range(CMDS_CLASSES + ARGS_GROUPED_DIM)
+
+    def _init_cache(self, caching_path_prefix, cached_sequences_format):
+        if caching_path_prefix is None:
+            return None
+
+        self.cached_sequences_format = cached_sequences_format
+        if self.cached_sequences_format not in ArgoverseDataset.SUPPORTED_CACHED_SEQUENCES_FORMAT:
+            raise ValueError(f"Unrecognized (or misconfigured) cache format: {self.cached_sequences_format}."
+                             f" Cache format must be one of {ArgoverseDataset.SUPPORTED_CACHED_SEQUENCES_FORMAT}.")
+
+        self.caching_path_prefix = caching_path_prefix
+        self.caching_path_sequences = f"{caching_path_prefix}.sequences.torchsave"
+        assert os.path.isfile(self.caching_path_sequences)
+        self._sequences = torch.load(self.caching_path_sequences)
+
+    def _load_svg_from_cache(self, idx):
+        seq = self._sequences[idx]  # N x 7+11
+
+        # seq (pytorch tensor that was cached) to svgtensor (instance of SVGTensor)
+        if self.cached_sequences_format == ArgoverseDataset.GROUPED_CACHE_FORMAT:
+            cache_viewbox_size = 24
+
+            cmds_grouped = torch.argmax(seq[..., :CMDS_CLASSES], dim=-1)
+            args_grouped = seq[..., CMDS_CLASSES:]
+
+            svgtensor = SVGTensor.from_cmd_args(cmds_grouped, args_grouped)
+            svgtensor.unpad()  # removes eos (and padding, but the preprocessed sequence have no padding)
+            svgtensor.drop_sos()
+
+        elif self.cached_sequences_format == ArgoverseDataset.SVGTENSOR_DATA_CACHE_FORMAT:
+            cache_viewbox_size = 255
+
+            svgtensor_data = seq
+            svgtensor = SVGTensor.from_data(svgtensor_data)
+
+        else:
+            raise RuntimeError()
+
+        # svgtensor to svg (because svg has the easily accessible augmentation functionality (zoom, translate, ...)
+        svg = SVG.from_tensor(svgtensor.data, viewbox=Bbox(cache_viewbox_size))
+
+        return svg
 
     @staticmethod
     def draw_svg(
@@ -154,42 +168,24 @@ class ArgoverseDataset(Dataset):
         pil_image = ArgoverseDataset.draw_svg(svg, output_width, output_height)
         return torch.tensor(np.array(pil_image).transpose(2, 0, 1)[-1:]) / 255.
 
-    def __getitem__(self, idx):
-        seq = self._sequences[idx]  # N x 7+11
+    def __getitem__(self, idx, svg=None, augment=None, return_deepsvg_model_input=None):
+        if return_deepsvg_model_input is None:
+            return_deepsvg_model_input = self.return_deepsvg_model_input
+            
+        if augment is None:
+            augment = self.augment
 
-        # seq (pytorch tensor that was cached) to svgtensor (instance of SVGTensor)
-        if self.cached_sequences_format == ArgoverseDataset.GROUPED_CACHE_FORMAT:
-            length = torch.tensor(len(seq))
-            cache_viewbox_size = 24
+        if svg is None:
+            svg = self._load_svg_from_cache(idx)
 
-            cmds_grouped = torch.argmax(seq[..., :CMDS_CLASSES], dim=-1)
-            args_grouped = seq[..., CMDS_CLASSES:]
-
-            svgtensor = SVGTensor.from_cmd_args(cmds_grouped, args_grouped)
-            svgtensor.unpad()  # removes eos (and padding, but the preprocessed sequence have no padding)
-            svgtensor.drop_sos()
-
-        elif self.cached_sequences_format == ArgoverseDataset.SVGTENSOR_DATA_CACHE_FORMAT:
-            length = torch.tensor(len(seq)) + 2  # eos and sos not present
-            cache_viewbox_size = 255
-
-            svgtensor_data = seq
-            svgtensor = SVGTensor.from_data(svgtensor_data)
-
-        else:
-            raise RuntimeError()
-
-        # svgtensor to svg (because svg has the easily accessible augmentation functionality (zoom, translate, ...)
-        svg = SVG.from_tensor(svgtensor.data, viewbox=Bbox(cache_viewbox_size))
+        svg = svg.copy()
 
         # working in the svg domain (allows for simpler preprocessing and rendering compared to seq or svgtensor)
-        svg = self._preprocess(svg)
-        if self.render_on_the_fly:
-            rendered_image = self._render_on_the_fly(idx, svg)
-        else:
-            rendered_image = self._rendered_images[idx]
+        svg = self._preprocess(svg, augment=augment)
+        length_with_sos_and_eos = svg.total_length() + 2
+        rendered_image = self._render_on_the_fly(idx, svg)
 
-        if self.return_deepsvg_model_input:
+        if return_deepsvg_model_input:
             model_inputs = SVGDataset.tensors_to_model_inputs(
                 tensors_separately=svg.split_paths().to_tensor(concat_groups=False, PAD_VAL=self.deepsvg_pad_val),
                 fillings=svg.to_fillings(),
@@ -201,7 +197,7 @@ class ArgoverseDataset(Dataset):
                 model_args=self.deepsvg_model_args,
                 label=None,
             )
-            return model_inputs, rendered_image, length
+            return model_inputs, rendered_image, length_with_sos_and_eos
 
         # svg back to svgtensor
         tensor_data = svg.to_tensor(concat_groups=True, PAD_VAL=-1)
@@ -214,12 +210,10 @@ class ArgoverseDataset(Dataset):
         cmds_grouped_onehot = torch.nn.functional.one_hot(cmds_grouped.to(torch.int64), num_classes=CMDS_CLASSES)
         args_grouped = svgtensor.args(with_start_pos=True)
         seq = torch.cat((cmds_grouped_onehot, args_grouped), dim=1)  # N x 7+13!
-        debug_length = torch.tensor(len(seq))
-        assert length == debug_length
         assert CMDS_CLASSES + ARGS_GROUPED_DIM == len(seq[0])
 
         seq = seq[:, self.sequence_feature_dimenstions]
-        return seq, rendered_image, length
+        return seq, rendered_image, length_with_sos_and_eos
 
     def __len__(self):
         return len(self._sequences)
@@ -237,11 +231,9 @@ class ArgoverseDataset(Dataset):
 
     def get_sequences_mean(self):
         return torch.tensor([0])
-        return self._seq_mean[self.sequence_feature_dimenstions]
 
     def get_sequences_std(self):
         return torch.tensor([1])
-        return self._seq_std[self.sequence_feature_dimenstions]
 
     def _augment(self, svg):
         if self.augment_shear_degrees != 0.0:
@@ -262,13 +254,13 @@ class ArgoverseDataset(Dataset):
 
         return svg
 
-    def _preprocess(self, svg):
+    def _preprocess(self, svg, augment=True):
         svg.normalize(Bbox(self.viewbox))
         if self.canonicalize_svg:
             svg.canonicalize()
         if self.zoom_preprocess_factor != 1.0:
             svg.zoom(self.zoom_preprocess_factor)
-        if self.augment:
+        if augment:
             self._augment(svg)
         if self.numericalize:
             svg.numericalize(256)
