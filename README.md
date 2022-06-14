@@ -19,15 +19,15 @@
 
 [//]: # (</div>)
 
-Vector graphics contain much more information compared to raster images. To profit from the additional information, we want to create a useful latent representation that can be used in downstream tasks. We explore latent representations of a simple encoder-decoder architecture, called Svg-latte, supervised by image reconstruction loss. Svg-latte outperforms DeepSVG, which is used as a baseline, in L1 image reconstruction. To investigate the usefulness of the latent representation in downstream tasks, we plug a pre-trained Svg-latte encoder into the trajectory prediction model [SVG-Net](https://github.com/vita-epfl/SVGNet). Even though Svg-latte outperformed DeepSVG in image reconstruction quality, replacing the DeepSVG-based transformer encoder in SVG-Net with Svg-latte gave a slight performance degradation. Further investigation of how useful Svg-latte in downstream tasks is needed, as well as how Svg-latte can be improved.
+Vector graphics contain much more information compared to raster images. To profit from the additional information, we want to create a useful latent representation that can be used in downstream tasks. We explore latent representations of a simple encoder-decoder architecture, called Svg-latte, supervised by image reconstruction loss. Svg-latte outperforms DeepSVG, which is used as a baseline, in L1 image reconstruction. To investigate the usefulness of the latent representation in downstream tasks, we plug a pre-trained Svg-latte encoder into the trajectory prediction model [SVG-Net](https://github.com/vita-epfl/SVGNet). Even though Svg-latte outperformed DeepSVG in image reconstruction quality, replacing the DeepSVG-based transformer encoder in SVG-Net with Svg-latte gave a slight performance degradation. Further investigation of how useful Svg-latte is in downstream tasks is needed, as well as how Svg-latte can be improved.
 
-The architecture of Svg-latte is quite simple and is illustrated on the diagram below. The encoder is made of stacked, fully-connected LSTMs, and the decoder is a CNN. The LSTM encodes the SVG command sequences into a latent representation. The CNN uses this latent representation to output an image of the SVG. The outputted image is compared to the ground truth rasterized image of the SVG using L1 distance, giving a supervision signal that trains the network.
+The architecture of Svg-latte is quite simple and is illustrated in the diagram below. The encoder is made of stacked, fully-connected LSTMs, and the decoder is a CNN. The LSTM encodes the SVG command sequences into a latent representation. The CNN uses this latent representation to output an image of the SVG. The outputted image is compared to the ground truth rasterized image of the SVG using L1 distance, giving a supervision signal that trains the network.
 
 <p align="center">
 <img src="assets/encoder-decoder.png" width=100% height=100% class="center">
 </p>
 
-When Svg-latte is plugged into SVG-Net, the decoder is replaced by the one used in SVG-Net and is trained to perform trajectory prediction as shown on the diagram below. This repository does not contain the implementation thereof, but it is pushed directly to the [SVG-Net repository](https://github.com/vita-epfl/SVGNet).
+When Svg-latte is plugged into SVG-Net, the decoder is replaced by the one used in SVG-Net and is trained to perform trajectory prediction as shown in the diagram below. This repository does not contain the implementation thereof, but it is pushed directly to the [SVG-Net repository](https://github.com/vita-epfl/SVGNet).
 
 <p align="center">
 <img src="assets/encoder-decoder-downstream.png" width=100% height=100% class="center">
@@ -37,11 +37,11 @@ When Svg-latte is plugged into SVG-Net, the decoder is replaced by the one used 
 
 Deep learning remains largely unexplored for vector graphics. Among the scarce work on vector graphics representation learning, no model is particularly good at SVG reconstruction:
 
-- DeepSVG works with a transformer based architecture and is supervised using the ground truth SVG commands from the training set. However, the visual reconstruction quality of this model is rather bad and was shown not to be useful in the downstream task of trajectory prediction ([SVG-Net](https://arxiv.org/pdf/2110.03706.pdf)).
+- DeepSVG works with a transformer-based architecture and is supervised using the ground truth SVG commands from the training set. However, the visual reconstruction quality of this model is rather bad and was shown not to be useful in the downstream task of trajectory prediction ([SVG-Net](https://arxiv.org/pdf/2110.03706.pdf)).
 - Im2Vec is a rasterization method and cannot take SVG as input, only an image.
 - DeepVecFont is tightly coupled to fonts and font generation, and unexplored for our use case. Our architecture is built on top of the neural rasterizer component of DeepVecFont.
 
-Learning the ground truth parametrization of the SVGs in the training dataset is too restrictive and inherits structural biases baked into the training dataset. We therefore approach the problem by using raster supervision, with an SVG encoder and an image decoder. We evaluate our method on the Argoverse dataset, which is representative for our downstream task of trajectory prediction.
+Learning the ground truth parametrization of the SVGs in the training dataset is too restrictive and inherits structural biases baked into the training dataset. We therefore approach the problem by using raster supervision, with an SVG encoder and an image decoder. We evaluate our method on the Argoverse dataset, which is representative of our downstream task of trajectory prediction.
 
 ## Set-up
 
@@ -67,14 +67,14 @@ conda install pytorch=1.11.0 torchvision=0.12.0 -c pytorch -y
 pip install -r requirements.txt
 ```
 
-Finally, make sure to update the `PYTHONPATH` environmental variable to include the deepsvg submodule. This needs to be done everytime a new shell/terminal is created, so you might want to separete the initialization into a bash initialization script that you can source (`source svglatte_init.sh`).
+Finally, make sure to update the `PYTHONPATH` environmental variable to include the deepsvg submodule. This needs to be done every time a new shell/terminal is created, so you might want to separate the initialization into a bash initialization script that you can source (`source svglatte_init.sh`).
 ```bash
 export PYTHONPATH="$PYTHONPATH:$PWD/deepsvg"
 ```
 
 ## Argoverse SVG dataset
 
-To work with SVGs that are representative for the downstream task of trajectory prediction, we have created an SVG dataset out of the Argoverse dataset. You can download the preprocessed SVG dataset from [here](https://drive.google.com/drive/folders/1Fb32W5Y3XjeT56nC-h4WbypQtkVokkkk?usp=sharing), for example like:
+To work with SVGs that are representative of the downstream task of trajectory prediction, we have created an SVG dataset out of the Argoverse dataset. You can download the preprocessed SVG dataset from [here](https://drive.google.com/drive/folders/1Fb32W5Y3XjeT56nC-h4WbypQtkVokkkk?usp=sharing), for example like:
 
 ```sh
 #!/usr/bin/env bash
@@ -91,7 +91,7 @@ gdown https://drive.google.com/uc?id=1XJ9J4UaIDXSis-QlsaoNgws2FaPa8HRN --output 
 echo "Download done."
 ```
 
-The folder structure of the downloaded dataset should be like:
+The folder structure of the downloaded dataset should be like this:
 
 ```
 path/to/argoverse_data_root
@@ -100,7 +100,7 @@ path/to/argoverse_data_root
 └── 231M val.sequences.torchsave
 ```
 
-To see how the dataset looks like, you can investigate how the following visualisation scripts work:
+To see what the dataset looks like, you can investigate how the following visualization scripts work:
 
 ```sh
 export ARGOVERSE_DATA_ROOT=data/argoverse
@@ -140,6 +140,30 @@ python -m svglatte.scripts.argoverse_to_svgdataset --input_argoverse_subset_file
 python -m svglatte.scripts.argoverse_to_svgdataset --input_argoverse_subset_file ${ARGOVERSE_DATA_ROOT}/train.sequences.torchsave  --output_deepsvg_format_subset_folder ${ARGOVERSE_DATA_ROOT}/svgdataset/train --workers 40
 ```
 
+You can check the dimensionality of the preprocessed dataset (i.e. the values for `max_num_groups`, `max_seq_len`, `max_total_len`) by running the script below. These numbers are used in the DeepSVG config files and can affect the training speed by alot.
+```bash
+python -m svglatte.scripts.argoverse_compute_svg_dimensionality_from_svgdataset --svgdataset_path ${ARGOVERSE_DATA_ROOT}/svgdataset
+
+# Expected output:
+# Subset: train
+# Dataset length: 205942
+# nb_groups \in [1,99]
+# seq_len \in [6,35]
+# total_len \in [17,672]
+
+# Subset: val
+# Dataset length: 39472
+# nb_groups \in [4,99]
+# seq_len \in [5,33]
+# total_len \in [31,625]
+
+# Subset: test
+# Dataset length: 78138
+# nb_groups \in [1,99]
+# seq_len \in [2,31]
+# total_len \in [2,631]
+``` 
+
 With the Argoverse prepared for DeepSVG, you can modify the run configuration in `svglatte.dataset.deepsvg_config.deepsvg_hierarchical_ordered_argoverse_6` with new dataset paths and run DeepSVG:
 ```sh
 python -m svglatte.train_deepsvg --config-module svglatte.dataset.deepsvg_config.deepsvg_hierarchical_ordered_argoverse_6 --num_gpus 2
@@ -147,7 +171,7 @@ python -m svglatte.train_deepsvg --config-module svglatte.dataset.deepsvg_config
 
 ### DeepSVG's Icons dataset
 
-To run the baseline on DeepSVG's icons dataset you can either follow the instructions in the DeepSVG repository, or the following. First download the dataset by following the instructions in the DeepSVG submodule. Second, update the paths in the config module `svglatte.dataset.deepsvg_config.deepsvg_hierarchical_ordered_icons`. Third and final, run using the updated config module:
+To run the baseline on DeepSVG's icons dataset you can either follow the instructions in the DeepSVG repository or the following. First, download the dataset by following the instructions in the DeepSVG submodule. Second, update the paths in the config module `svglatte.dataset.deepsvg_config.deepsvg_hierarchical_ordered_icons`. Third and final, run using the updated config module:
 ```sh
 python -m svglatte.train_deepsvg --config-module svglatte.dataset.deepsvg_config.deepsvg_hierarchical_ordered_icons --num_gpus 2
 ```

@@ -21,10 +21,10 @@ class Config(Config):
         self.filter_category = None
 
         self.learning_rate = 1e-4 * num_gpus
-        self.batch_size = 80 * num_gpus
+        self.batch_size = 10 * num_gpus
 
         # self.num_epochs = 100
-        self.num_epochs = 150
+        self.num_epochs = 75
         self.log_every = 20
         self.val_every = 1000
         self.ckpt_every = 1000
@@ -32,8 +32,8 @@ class Config(Config):
 
         # Argoverse specific
         self.max_num_groups = 100
-        self.max_seq_len = 10
-        self.max_total_len = 261
+        self.max_seq_len = 35
+        self.max_total_len = 673
         self.nb_augmentations = 1
 
         self.model_cfg.max_num_groups = self.max_num_groups
