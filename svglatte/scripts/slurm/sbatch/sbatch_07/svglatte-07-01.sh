@@ -29,5 +29,5 @@ export PYTHONPATH="$PYTHONPATH:$PWD/deepsvg"
 # Run
 date
 printf "Run configured and environment setup. Gonna run now.\n\n"
-python -m svglatte.train --experiment_name=svglatte_argoverse_128x128_rotAUG --experiment_version 'S7.01_DeepSVG_Encoder' --gpus -1 --n_epochs 450 --early_stopping_patience 50 --batch_size=512 --gradient_clip_val 1.0 --encoder_type deepsvg --decoder_n_filters_in_last_conv_layer 32 --no_layernorm --cx_loss_w 0.0 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 10 --argoverse_rendered_images_width 128 --argoverse_rendered_images_height 128 --argoverse_render_onthefly --argoverse_augment_train --argoverse_zoom_preprocess_factor 0.70710678118
+python -m svglatte.train --experiment_name=svglatte_argoverse_128x128_rotAUG --experiment_version 'S7.01_DeepSVG_Encoder' --gpus -1 --n_epochs 450 --early_stopping_patience 50 --batch_size=512 --gradient_clip_val 1.0 --encoder_type deepsvg --decoder_n_filters_in_last_conv_layer 32 --no_layernorm --cx_loss_w 0.0 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 10 --argoverse_rendered_images_width 128 --argoverse_rendered_images_height 128 --argoverse_augment_train --argoverse_zoom_preprocess_factor 0.70710678118
 echo FINISHED at $(date)

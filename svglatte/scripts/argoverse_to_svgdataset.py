@@ -1,3 +1,4 @@
+import argparse
 import os
 from concurrent import futures
 
@@ -83,15 +84,24 @@ def argoverse_to_svg_dataset(caching_path_sequences, output_folder, max_workers)
     deepsvg_dataset_preprocess_main(args)
 
 
-def main():
+def main(args):
     """Convert Argoverse to a deepsvg.svg_dataset.SVGDataset so that it can be evaluated with DeepSVG."""
-    for subset in ["train"]:
-        caching_path = f"/home/frano/data/svgnet-hossein-argoverse-4/{subset}.sequences.torchsave"
-        output_folder = f"/home/frano/data/svgnet-hossein-argoverse-4/svgdataset2/{subset}"
-        # caching_path = f"/scratch/izar/rajic/svgnet-hossein/cache/argo_4/{subset}.sequences.torchsave"
-        # output_folder = f"/scratch/izar/rajic/svgnet-hossein/cache/argo_4/svgdataset/{subset}"
-        argoverse_to_svg_dataset(caching_path, output_folder, max_workers=1000)
+    argoverse_to_svg_dataset(
+        caching_path=args.input_argoverse_subset_file,
+        output_folder=args.output_deepsvg_format_subset_folder,
+        max_workers=args.workers,
+    )
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input_argoverse_subset_file', type=str, default='data/argoverse/train.sequences.torchsave')
+    parser.add_argument('--output_deepsvg_format_subset_folder', type=str, default='data/svgdataset/train')
+    parser.add_argument('--workers', type=int, default=40)
+    args = parser.parse_args()
+    print(f"Args: {args}")
+
+    # Create plots dir if it does not exist.
+    ensure_dir(args.output_deepsvg_format_subset_folder)
+
+    main(args)

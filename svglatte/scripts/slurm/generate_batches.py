@@ -103,25 +103,25 @@ sbatch_configurations = {
     },
     "sbatch_04": {  # Test setup
         "commands": [
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --no_layernorm",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 4 --argoverse_val_workers 4  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.1 --argoverse_augment_train --no_layernorm",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --argoverse_augment_scale_min 0.9 --argoverse_augment_scale_max 1.5",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --argoverse_numericalize",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type fc_lstm --lstm_num_layers 8 --n_epochs 1 --argoverse_fast_run --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --no_layernorm",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 4 --argoverse_val_workers 4  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.1 --argoverse_augment_train --no_layernorm",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --argoverse_augment_scale_min 0.9 --argoverse_augment_scale_max 1.5",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 1 --argoverse_fast_run --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --argoverse_numericalize",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64_test2 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type fc_lstm --lstm_num_layers 8 --n_epochs 1 --argoverse_fast_run --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm",
         ]
     },
     "sbatch_05": {  # Same as 04, but not a test
         "commands": [
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --no_layernorm --experiment_version '5s01 noAUG Residual_noLN_noCX 4,512,hc'",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --experiment_version '5s02 AUG Residual_noCX 4,512,hc'",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --experiment_version '5s03 AUG Residual_noLN_noCX 4,512,hc'",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 4 --argoverse_val_workers 4  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.1 --argoverse_augment_train --no_layernorm --experiment_version '5s04 AUG Residual_noLN 4,512,hc'",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --argoverse_augment_scale_mn 0.9 --argoverse_augment_scale_max 1.5 --experiment_version '5s05 AUG_ZOOM Residual_noLN_noCX 4,512,hc'",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --argoverse_numericalize --experiment_version '5s06 AUG Residual_noLN_noCX_nize 4,512,hc'",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type fc_lstm --lstm_num_layers 8 --n_epochs 200 --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --experiment_version '5s07 AUG FCLSTM_noLN_noCX 8,512,hc'",
-            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_render_onthefly --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --argoverse_augment_scale_mn 1.5 --argoverse_augment_scale_max 2.5 --experiment_version '5s08 AUG_ZOOM2 Residual_noLN_noCX 4,512,hc'",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --no_layernorm --experiment_version '5s01 noAUG Residual_noLN_noCX 4,512,hc'",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --experiment_version '5s02 AUG Residual_noCX 4,512,hc'",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --experiment_version '5s03 AUG Residual_noLN_noCX 4,512,hc'",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 4 --argoverse_val_workers 4  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.1 --argoverse_augment_train --no_layernorm --experiment_version '5s04 AUG Residual_noLN 4,512,hc'",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --argoverse_augment_scale_mn 0.9 --argoverse_augment_scale_max 1.5 --experiment_version '5s05 AUG_ZOOM Residual_noLN_noCX 4,512,hc'",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --argoverse_numericalize --experiment_version '5s06 AUG Residual_noLN_noCX_nize 4,512,hc'",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type fc_lstm --lstm_num_layers 8 --n_epochs 200 --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --experiment_version '5s07 AUG FCLSTM_noLN_noCX 8,512,hc'",
+            "python -m svglatte.models.neural_rasterizer --experiment_name=svglatte_argoverse_64x64 --dataset=argoverse --argoverse_train_workers 40 --argoverse_val_workers 20  --gpus -1 --batch_size=1024 --lr 0.0002 --weight_decay 0.0 --encoder_type residual_lstm --lstm_num_layers 4 --n_epochs 200 --argoverse_rendered_images_width 64 --argoverse_rendered_images_height 64 --cx_loss_w 0.0 --argoverse_augment_train --no_layernorm --argoverse_augment_scale_mn 1.5 --argoverse_augment_scale_max 2.5 --experiment_version '5s08 AUG_ZOOM2 Residual_noLN_noCX 4,512,hc'",
         ]
     },
     "sbatch_06": {
@@ -147,7 +147,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -171,7 +170,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
             "python -m svglatte.train"
@@ -194,7 +192,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -218,7 +215,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -241,7 +237,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -265,7 +260,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_zoom_preprocess_factor 0.70710678118"
             " --argoverse_augment_train"
             " --gradient_clip_val 1.0",
@@ -290,7 +284,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_zoom_preprocess_factor 0.70710678118"
             " --argoverse_augment_train",
 
@@ -314,7 +307,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -338,7 +330,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118"
             " --argoverse_viewbox 128",
@@ -363,7 +354,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118"
             " --decoder_norm_layer_name batchnorm",
@@ -390,7 +380,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -413,7 +402,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 15"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -448,7 +436,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -477,7 +464,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -506,7 +492,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
             "python -m svglatte.train"
@@ -534,7 +519,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
         ]
 
@@ -566,7 +550,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 15"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -595,7 +578,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 15"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -624,7 +606,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
             "python -m svglatte.train"
@@ -652,7 +633,6 @@ sbatch_configurations = {
             " --argoverse_val_workers 10"
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -681,7 +661,6 @@ sbatch_configurations = {
             " --argoverse_rendered_images_width 256"
             " --argoverse_rendered_images_height 256"
             " --argoverse_viewbox 24"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -710,7 +689,6 @@ sbatch_configurations = {
             " --argoverse_rendered_images_width 256"
             " --argoverse_rendered_images_height 256"
             " --argoverse_viewbox 64"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
 
@@ -739,7 +717,6 @@ sbatch_configurations = {
             " --argoverse_rendered_images_width 128"
             " --argoverse_rendered_images_height 128"
             " --argoverse_viewbox 40"
-            " --argoverse_render_onthefly"
             " --argoverse_augment_train"
             " --argoverse_zoom_preprocess_factor 0.70710678118",
         ]
@@ -747,19 +724,30 @@ sbatch_configurations = {
     },
 }
 
-SBATCH_ID = 'sbatch_09'
-OUTPUT_FOLDER = f"./sbatch/{SBATCH_ID}"
+SBATCH_IDS = [
+    'sbatch_01',
+    'sbatch_02',
+    'sbatch_03',
+    'sbatch_04',
+    'sbatch_05',
+    'sbatch_06',
+    'sbatch_07',
+    'sbatch_08',
+    'sbatch_09',
+]
+for SBATCH_ID in SBATCH_IDS:
+    OUTPUT_FOLDER = f"./sbatch/{SBATCH_ID}"
 
-sbatch_config = sbatch_configurations[SBATCH_ID]
-if __name__ == '__main__':
-    dirname = pathlib.Path(OUTPUT_FOLDER)
-    if not dirname.is_dir():
-        dirname.mkdir(parents=True, exist_ok=False)
+    sbatch_config = sbatch_configurations[SBATCH_ID]
+    if __name__ == '__main__':
+        dirname = pathlib.Path(OUTPUT_FOLDER)
+        if not dirname.is_dir():
+            dirname.mkdir(parents=True, exist_ok=False)
 
-    for i, cmd in enumerate(sbatch_config["commands"]):
-        i += 1  # start from 1
-        script_path = os.path.join(OUTPUT_FOLDER, f"svglatte-{SBATCH_ID.split('_')[-1]}-{i:02d}.sh")
-        with open(script_path, "w") as f:
-            f.write(fill_template(i=i, sbatch_id=SBATCH_ID, command=cmd, debug=sbatch_config["debug"]))
-        print(f"Created script: {script_path}")
-    print("Done")
+        for i, cmd in enumerate(sbatch_config["commands"]):
+            i += 1  # start from 1
+            script_path = os.path.join(OUTPUT_FOLDER, f"svglatte-{SBATCH_ID.split('_')[-1]}-{i:02d}.sh")
+            with open(script_path, "w") as f:
+                f.write(fill_template(i=i, sbatch_id=SBATCH_ID, command=cmd, debug=sbatch_config.get("debug", False)))
+            print(f"Created script: {script_path}")
+        print("Done")
