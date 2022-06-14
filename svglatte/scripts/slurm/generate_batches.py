@@ -691,7 +691,7 @@ sbatch_configurations = {
             " --gpus -1"
             " --n_epochs 450"
             " --early_stopping_patience 50"
-            " --batch_size=512"
+            " --batch_size=256"
             " --encoder_lr 0.00042"
             " --decoder_lr 0.00042"
             " --encoder_weight_decay 0.0"
