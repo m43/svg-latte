@@ -11,7 +11,6 @@ def main():
             caching_path_prefix=f"/home/user72/Desktop/argoverse1/{ds_name}",
             rendered_images_width=64,
             rendered_images_height=64,
-            render_on_the_fly=True,
             remove_redundant_features=True,
             numericalize=False,
             augment=False,

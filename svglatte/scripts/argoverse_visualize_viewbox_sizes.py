@@ -1,3 +1,5 @@
+import argparse
+import os
 from collections import defaultdict
 from datetime import datetime
 
@@ -6,9 +8,10 @@ import torchvision
 from matplotlib import pyplot as plt
 
 from svglatte.dataset.argoverse_dataset import ArgoverseDataset
+from svglatte.utils.util import ensure_dir
 
 
-def main():
+def main(args):
     """Visualize different viewboxes for images of different resolution."""
 
     datetime_str = datetime.now().strftime('%m.%d_%H.%M.%S')
@@ -19,10 +22,9 @@ def main():
         rendered_images = defaultdict(list)
         for viewbox in viewbox_sizes:
             ds = ArgoverseDataset(
-                caching_path_prefix="/home/user72/Desktop/argoverse1/val",
+                caching_path_prefix=args.caching_path_prefix,
                 rendered_images_width=res,
                 rendered_images_height=res,
-                render_on_the_fly=True,
                 remove_redundant_features=True,
                 numericalize=False,
                 augment=False,
@@ -35,7 +37,10 @@ def main():
         for id, imgs in rendered_images.items():
             grid = torchvision.utils.make_grid(imgs, nrow=int(np.sqrt(len(viewbox_sizes))))
             plt.imsave(
-                f"/home/user72/Desktop/viewbox/{datetime_str}_{id}_{res}_{viewbox_sizes_str}.png",
+                os.path.join(
+                    args.plots_output_directory,
+                    f"{datetime_str}__viewboxes_res={res}x{res}_vboxes={viewbox_sizes_str}.png"
+                ),
                 grid.permute(1, 2, 0).numpy()
             )
 
@@ -43,4 +48,14 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--caching_path_prefix', type=str, default='data/argoverse/train')
+    parser.add_argument('--plots_output_directory', type=str, default='logs/plot_argoverse')
+
+    args = parser.parse_args()
+    print(f"Args: {args}")
+
+    # Create plots dir if it does not exist.
+    ensure_dir(args.plots_output_directory)
+
+    main(args)
