@@ -1,6 +1,5 @@
 # Adapted from (diff the two files to see the changes made):
 # https://github.com/SapienzaNLP/unify-srl/blob/75ad47ec5327a450b85a57154431638a7360b296/srl/layers/sequence_encoder.py
-import pdb
 
 import torch
 import torch.nn as nn
@@ -328,7 +327,7 @@ class FullyConnectedBiLSTM(nn.Module):
             input_sequences = torch.cat([input_sequences, sequence_encodings], dim=-1)
 
         output_sequences = input_sequences
-        
+
         if self.bidirectional:
             h = h.reshape(h.shape[0] // 2, h.shape[1], h.shape[2] * 2)
             c = c.reshape(c.shape[0] // 2, c.shape[1], c.shape[2] * 2)

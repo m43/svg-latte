@@ -171,7 +171,7 @@ class ArgoverseDataset(Dataset):
     def __getitem__(self, idx, svg=None, augment=None, return_deepsvg_model_input=None):
         if return_deepsvg_model_input is None:
             return_deepsvg_model_input = self.return_deepsvg_model_input
-            
+
         if augment is None:
             augment = self.augment
 
