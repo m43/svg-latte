@@ -28,7 +28,7 @@ class Config(Config):
         self.log_every = 20
         self.val_every = 1000
         self.ckpt_every = 1000
-        self.pretrained_path = "logs2/models/dataset/deepsvg_hierarchical_ordered_argoverse_6/006863.pth.tar"
+        # self.pretrained_path = "logs2/models/dataset/deepsvg_hierarchical_ordered_argoverse_6/006863.pth.tar"
 
         # Argoverse specific
         self.max_num_groups = 100
@@ -43,14 +43,14 @@ class Config(Config):
 
         self.dataloader_module = "svglatte.train_deepsvg"
 
-        self.train_meta_filepath = "./data/svgnet-hossein-argoverse-4/svgdataset/train/svg_meta.csv"
-        self.train_data_dir = "./data/svgnet-hossein-argoverse-4/svgdataset/train/svgs_simplified/"
+        self.train_meta_filepath = "./data/argoverse/svgdataset/train/svg_meta.csv"
+        self.train_data_dir = "./data/argoverse/svgdataset/train/svgs_simplified/"
 
-        self.val_meta_filepath = "./data/svgnet-hossein-argoverse-4/svgdataset/val/svg_meta.csv"
-        self.val_data_dir = "./data/svgnet-hossein-argoverse-4/svgdataset/val/svgs_simplified/"
+        self.val_meta_filepath = "./data/argoverse/svgdataset/val/svg_meta.csv"
+        self.val_data_dir = "./data/argoverse/svgdataset/val/svgs_simplified/"
 
-        self.test_meta_filepath = "./data/svgnet-hossein-argoverse-4/svgdataset/test/svg_meta.csv"
-        self.test_data_dir = "./data/svgnet-hossein-argoverse-4/svgdataset/test/svgs_simplified/"
+        self.test_meta_filepath = "./data/argoverse/svgdataset/test/svg_meta.csv"
+        self.test_data_dir = "./data/argoverse/svgdataset/test/svgs_simplified/"
 
     def make_schedulers(self, optimizers, epoch_size):
         optimizer, = optimizers

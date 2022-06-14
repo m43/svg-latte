@@ -87,7 +87,7 @@ def argoverse_to_svg_dataset(caching_path_sequences, output_folder, max_workers)
 def main(args):
     """Convert Argoverse to a deepsvg.svg_dataset.SVGDataset so that it can be evaluated with DeepSVG."""
     argoverse_to_svg_dataset(
-        caching_path=args.input_argoverse_subset_file,
+        caching_path_sequences=args.input_argoverse_subset_file,
         output_folder=args.output_deepsvg_format_subset_folder,
         max_workers=args.workers,
     )
