@@ -41,7 +41,7 @@ Deep learning remains largely unexplored for vector graphics. Among the scarce w
 - Im2Vec is a rasterization method and cannot take SVG as input, only an image.
 - DeepVecFont is tightly coupled to fonts and font generation, and unexplored for our use case. Our architecture is built on top of the neural rasterizer component of DeepVecFont.
 
-Learning the ground truth parametrization of the SVGs in the training dataset is too restrictive and inherits structural biases baked into the training dataset. We therefore approach the problem by using raster supervision, with an SVG encoder and an image decoder. We evaluate our method on the Argoverse dataset, which is representative of our downstream task of trajectory prediction.
+Learning the ground truth parametrization of the SVGs in the training dataset is too restrictive and inherits structural biases baked into the training dataset. We therefore approach the problem by using raster supervision, with an SVG encoder and an image decoder. We evaluate our method on the ArgoSVG dataset, which is representative of our downstream task of trajectory prediction.
 
 ## Set-up
 
@@ -72,9 +72,9 @@ Finally, make sure to update the `PYTHONPATH` environmental variable to include 
 export PYTHONPATH="$PYTHONPATH:$PWD/deepsvg"
 ```
 
-## Argoverse SVG dataset
+## ArgoSVG dataset
 
-To work with SVGs that are representative of the downstream task of trajectory prediction, we have created an SVG dataset out of the Argoverse dataset. You can download the preprocessed SVG dataset from [here](https://drive.google.com/drive/folders/1Fb32W5Y3XjeT56nC-h4WbypQtkVokkkk?usp=sharing), for example like:
+To work with SVGs that are representative of the downstream task of trajectory prediction, we have derived the ArgoSVG dataset of SVGs by preprocessing [Argoverse 1](https://www.argoverse.org/av1.html) published by Argo AI, LLC under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). ArgoSVG is licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) as well. You can find ArgoSVG [here](https://drive.google.com/drive/folders/1Fb32W5Y3XjeT56nC-h4WbypQtkVokkkk?usp=sharing), and download it for example like this:
 
 ```sh
 #!/usr/bin/env bash
@@ -111,7 +111,7 @@ python -m svglatte.scripts.argoverse_visualize_viewbox_sizes --caching_path_pref
 
 ## Running Svg-latte
 
-The best Svg-latte result on the Argoverse dataset can be inspected on [wandb](https://wandb.ai/user72/svglatte_argoverse_128x128_rotAUG/runs/S9.01_ARGO4_FC.4c_rotAUG_noLN_noCX_NGF-16_GC-None_05.13_03.56.46?workspace=user-user72):
+The best Svg-latte result on the ArgoSVG dataset can be inspected on [wandb](https://wandb.ai/user72/svglatte_argoverse_128x128_rotAUG/runs/S9.01_ARGO4_FC.4c_rotAUG_noLN_noCX_NGF-16_GC-None_05.13_03.56.46?workspace=user-user72):
 
 - `train/loss_epoch=0.007657211739569902`
 - `val/loss_epoch=0.017186321318149567`
@@ -129,9 +129,9 @@ To see other experiments we have run, take a look at the latest set of experimen
 
 ## Running DeepSVG
 
-### Argoverse
+### ArgoSVG
 
-To run the baseline on the Argoverse dataset, first preprocess the Argoverse dataset so that it can be used by DeepSVG by running the sequence of commands below. Nota bene: this might take a few hours to finish and tqdm might freeze, you can monitor the progress by counting the number of preprocessed `.svg` files created in the output folder (`ls -l {ARGOVERSE_DATA_ROOT}/svgdataset/train/svgs | wc -l`).
+To run the baseline on the ArgoSVG dataset, first preprocess the ArgoSVG dataset so that it can be used by DeepSVG by running the sequence of commands below. Nota bene: this might take a few hours to finish and tqdm might freeze, you can monitor the progress by counting the number of preprocessed `.svg` files created in the output folder (`ls -l {ARGOVERSE_DATA_ROOT}/svgdataset/train/svgs | wc -l`).
 ```sh
 export ARGOVERSE_DATA_ROOT=data/argoverse
 
@@ -164,10 +164,16 @@ python -m svglatte.scripts.argoverse_compute_svg_dimensionality_from_svgdataset 
 # total_len \in [2,631]
 ``` 
 
-With the Argoverse prepared for DeepSVG, you can modify the run configuration in `svglatte.dataset.deepsvg_config.deepsvg_hierarchical_ordered_argoverse_6` with new dataset paths and run DeepSVG:
+With the ArgoSVG prepared for DeepSVG, you can modify the run configuration in `svglatte.dataset.deepsvg_config.deepsvg_hierarchical_ordered_argoverse_6` with new dataset paths and run DeepSVG:
 ```sh
 python -m svglatte.train_deepsvg --config-module svglatte.dataset.deepsvg_config.deepsvg_hierarchical_ordered_argoverse_6 --num_gpus 2
 ```
+
+Comparison of DeepSVG and Svg-latte on the ArgoSVG dataset:
+
+<p align="center">
+<img src="assets/baseline_comparison.png" width=100% height=100% class="center">
+</p>
 
 ### DeepSVG's Icons dataset
 
@@ -178,7 +184,7 @@ python -m svglatte.train_deepsvg --config-module svglatte.dataset.deepsvg_config
 
 ## License
 
-Distributed under the MIT License. See LICENSE for more information.
+Codebase distributed under the MIT License. See LICENSE for more information.
 
 ## Authors
 
