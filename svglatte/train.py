@@ -34,6 +34,7 @@ def get_parser_main_model():
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size')
     parser.add_argument('--gpus', type=int, default=-1)
     parser.add_argument('--early_stopping_patience', type=int, default=72)
+    parser.add_argument('--seed', type=int, default=72)
     parser.add_argument('--seq_feature_dim', type=int, default=8)
 
     # optimizer
@@ -355,7 +356,7 @@ def get_neural_rasterizer(config, deepsvg_encoder_config=None):
 
 
 def main(config):
-    pl.seed_everything(72)
+    pl.seed_everything(config.seed, workers=True)
 
     dm, seq_feature_dim, deepsvg_encoder_config = get_dataset(config)
     config.lstm_input_size = seq_feature_dim
