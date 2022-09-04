@@ -1,10 +1,10 @@
 from typing import Any, Callable, Optional, Union
 
 import pandas as pd
-import pytorch_lightning as pl
 import torch
 import torchvision
 import wandb
+from pytorch_lightning.core.module import LightningModule
 from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
@@ -16,7 +16,7 @@ from torch.optim.optimizer import Optimizer
 from svglatte.models.vgg_contextual_loss import VGGContextualLoss
 
 
-class NeuralRasterizer(pl.LightningModule):
+class NeuralRasterizer(LightningModule):
     def __init__(
             self,
             encoder: nn.Module,
@@ -134,11 +134,11 @@ class NeuralRasterizer(pl.LightningModule):
         }
 
         # logging
-        self.log(f'Loss/{subset}/loss', loss,
+        self.log(f'Loss/{subset}/loss', float(loss),
                  on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
-        self.log(f'Loss/{subset}/img_l1_loss', self.l1_loss_w * mean_l1_loss,
+        self.log(f'Loss/{subset}/img_l1_loss', float(self.l1_loss_w * mean_l1_loss),
                  on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
-        self.log(f'Loss/{subset}/img_perceptual_loss', self.cx_loss_w * vggcx_loss['cx_loss'],
+        self.log(f'Loss/{subset}/img_perceptual_loss', float(self.cx_loss_w * vggcx_loss['cx_loss']),
                  on_step=True, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
 
         if batch_idx % 400 == 0:

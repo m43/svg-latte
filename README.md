@@ -60,10 +60,10 @@ conda activate svglatte
 ```
 
 Then, install [PyTorch](https://pytorch.org/) 1.11.0 and [torchvision](https://pytorch.org/vision/stable/index.html)
-0.12.0, followed by other packages. For example:
+0.12.0, followed by other packages. For example with CUDA 11 support:
 
 ```bash
-conda install pytorch=1.11.0 torchvision=0.12.0 -c pytorch -y
+conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=11.3 -c pytorch
 pip install -r requirements.txt
 ```
 
@@ -188,6 +188,6 @@ Codebase distributed under the MIT License. See LICENSE for more information.
 
 ## Authors
 
-Author: [Frano Rajič](https://www.github.com/m43)
+Author: [Frano Rajič](https://m43.github.io/)
 
 Supervised by: [Mohammadhossein Bahari](https://github.com/MohammadHossein-Bahari) & [Saeed Saadatnejad](https://github.com/SaeedSaadatnejad), [VITA lab](https://www.epfl.ch/labs/vita/)
