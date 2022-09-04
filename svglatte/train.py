@@ -34,6 +34,7 @@ def get_parser_main_model():
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size')
     parser.add_argument('--gpus', type=int, default=-1)
     parser.add_argument('--early_stopping_patience', type=int, default=72)
+    parser.add_argument('--seq_feature_dim', type=int, default=8)
 
     # optimizer
     parser.add_argument('--encoder_lr', type=float, default=0.00042, help='encoder learning rate')
@@ -219,7 +220,13 @@ def get_dataset(config):
             canonicalize_svg=config.argoverse_canonicalize_svg,
             **deepsvg_encoder_config_for_argoverse
         )
-        seq_feature_dim = dm.train_ds.get_number_of_sequence_dimensions()
+        # TODO:
+        #  The DataModule now uses setup which we do not want to call only to figure out the seq_feature_dim value.
+        #  Quick fix is to pass the value of seq_feature_dim through the command line, like `--seq_feature_dim 8`.
+        # dm.setup()
+        # seq_feature_dim = dm.train_ds.get_number_of_sequence_dimensions()
+        # print("seq_feature_dim", seq_feature_dim)
+        seq_feature_dim = config.seq_feature_dim
     else:
         raise Exception(f"Invalid dataset passed: {config.dataset}")
     return dm, seq_feature_dim, deepsvg_encoder_config

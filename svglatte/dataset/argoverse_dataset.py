@@ -1,6 +1,7 @@
 import io
 import os
 import random
+from typing import Optional
 
 import cairosvg
 import numpy as np
@@ -51,6 +52,7 @@ class ArgoverseDataset(Dataset):
             deepsvg_pad_val=None,
     ):
         self._init_cache(caching_path_prefix, cached_sequences_format)
+        self.getitem_cache = None if augment else {}
 
         self.rendered_images_width = rendered_images_width
         self.rendered_images_height = rendered_images_height
@@ -169,6 +171,9 @@ class ArgoverseDataset(Dataset):
         return torch.tensor(np.array(pil_image).transpose(2, 0, 1)[-1:]) / 255.
 
     def __getitem__(self, idx, svg=None, augment=None, return_deepsvg_model_input=None):
+        if self.getitem_cache is not None and idx in self.getitem_cache:
+            return self.getitem_cache[idx]
+
         if return_deepsvg_model_input is None:
             return_deepsvg_model_input = self.return_deepsvg_model_input
 
@@ -213,7 +218,11 @@ class ArgoverseDataset(Dataset):
         assert CMDS_CLASSES + ARGS_GROUPED_DIM == len(seq[0])
 
         seq = seq[:, self.sequence_feature_dimenstions]
-        return seq, rendered_image, length_with_sos_and_eos
+
+        item = seq, rendered_image, length_with_sos_and_eos
+        if self.getitem_cache is not None:
+            self.getitem_cache[idx] = item
+        return item
 
     def __len__(self):
         return len(self._sequences)
@@ -283,25 +292,58 @@ class ArgoverseDataModule(pl.LightningDataModule):
             **kwargs
     ):
         super(ArgoverseDataModule, self).__init__()
+
+        self.data_root = data_root
+        self.pad_val = pad_val
+        self.fast_run = fast_run
         self.batch_size = batch_size
 
         self.train_workers = train_workers
         self.val_workers = val_workers
         self.test_workers = test_workers
 
-        if fast_run:
-            print("Fast run (train_ds = test_ds = val_ds)")
-            self.val_ds = ArgoverseDataset(os.path.join(data_root, f"val"), augment=augment_train, **kwargs)
-            self.train_ds = self.test_ds = self.val_ds
-        else:
-            self.train_ds = ArgoverseDataset(os.path.join(data_root, f"train"), augment=augment_train, **kwargs)
-            self.val_ds = ArgoverseDataset(os.path.join(data_root, f"val"), augment=augment_val, **kwargs)
-            self.test_ds = ArgoverseDataset(os.path.join(data_root, f"test"), augment=augment_test, **kwargs)
+        self.augment_test = augment_test
+        self.augment_val = augment_val
+        self.augment_train = augment_train
+
+        self.dataset_kwargs = kwargs
+        self.train_ds = None
+        self.val_ds = None
+        self.test_ds = None
 
         def collate_fn(batch):
-            return pad_collate_fn(batch, pad_val)
+            return pad_collate_fn(batch, self.pad_val)
 
-        self.collate_fn = collate_fn if not kwargs['return_deepsvg_model_input'] else None
+        self.collate_fn = collate_fn if not self.dataset_kwargs['return_deepsvg_model_input'] else None
+
+    def prepare_data(self) -> None:
+        pass
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        if self.fast_run:
+            print("Fast run (train_ds = test_ds = val_ds)")
+            self.val_ds = ArgoverseDataset(
+                os.path.join(self.data_root, f"val"),
+                augment=self.augment_val,
+                **self.dataset_kwargs
+            )
+            self.train_ds = self.test_ds = self.val_ds
+        else:
+            self.train_ds = ArgoverseDataset(
+                os.path.join(self.data_root, f"train"),
+                augment=self.augment_train,
+                **self.dataset_kwargs
+            )
+            self.val_ds = ArgoverseDataset(
+                os.path.join(self.data_root, f"val"),
+                augment=self.augment_val,
+                **self.dataset_kwargs
+            )
+            self.test_ds = ArgoverseDataset(
+                os.path.join(self.data_root, f"test"),
+                augment=self.augment_test,
+                **self.dataset_kwargs
+            )
 
         self.train_mean = self.train_ds.get_sequences_mean()
         self.train_mean[:CMDS_CLASSES] = 0.
