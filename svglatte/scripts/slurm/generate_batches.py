@@ -583,7 +583,7 @@ sbatch_configurations = {
 
             "python -m svglatte.train"
             " --experiment_name=svglatte_argoverse_128x128_rotAUG"
-            " --experiment_version 'S9.03_ARGO2_FC.4c_noAUG_noLN_noCX_NGF=32_GC=1.0'"
+            " --experiment_version 'S9.03_ARGO4_FC.4c_noAUG_noLN_noCX_NGF=32_GC=1.0'"
             " --gpus -1"
             " --n_epochs 450"
             " --early_stopping_patience 50"
@@ -610,7 +610,7 @@ sbatch_configurations = {
 
             "python -m svglatte.train"
             " --experiment_name=svglatte_argoverse_128x128_rotAUG"
-            " --experiment_version 'S9.04_ARGO2_Res.4hc_rotAUG_noLN_noCX_NGF=32_GC=1.0_encoderLR=decoderLR=0.0001'"
+            " --experiment_version 'S9.04_ARGO4_Res.4hc_rotAUG_noLN_noCX_NGF=32_GC=1.0_encoderLR=decoderLR=0.0001'"
             " --gpus -1"
             " --n_epochs 450"
             " --early_stopping_patience 50"

@@ -34,7 +34,10 @@ def get_parser_main_model():
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size')
     parser.add_argument('--gpus', type=int, default=-1)
     parser.add_argument('--early_stopping_patience', type=int, default=72)
+    parser.add_argument('--check_val_every_n_epoch', type=int, default=1)
     parser.add_argument('--seed', type=int, default=72)
+    parser.add_argument('--precision', type=int, default=32)
+    parser.add_argument('--training_strategy', type=str, default="dp")
     parser.add_argument('--seq_feature_dim', type=int, default=8)
 
     # optimizer
@@ -399,10 +402,10 @@ def main(config):
 
     early_stopping_callback = EarlyStopping(
         monitor="Loss/val/loss", mode="min",
-        patience=config.early_stopping_patience,
+        patience=max(2, config.early_stopping_patience // config.check_val_every_n_epoch),
         check_on_train_epoch_end=False
     )
-    model_checkpoint_callback = ModelCheckpoint(monitor="Loss/val/loss", save_last=True, verbose=True, )
+    model_checkpoint_callback = ModelCheckpoint(monitor="Loss/val/loss", save_top_k=1, save_last=True, verbose=True, )
     learning_rate_monitor_callback = LearningRateMonitor(logging_interval='step')
     callbacks = [
         early_stopping_callback,
@@ -414,16 +417,27 @@ def main(config):
     if torch.cuda.is_available() and config.gpus != 0:
         trainer = Trainer(
             max_epochs=config.n_epochs,
+            check_val_every_n_epoch=config.check_val_every_n_epoch,
             default_root_dir="logs",
             logger=loggers,
             callbacks=callbacks,
             gradient_clip_val=config.gradient_clip_val,
             auto_lr_find=config.auto_lr_find,
+            precision=config.precision,
             gpus=config.gpus,
             accelerator="gpu",
-            strategy='dp',
+            strategy=config.training_strategy,
+
+            # ~~~ Uncomment for very very fast debugging ~~~ #
+            # limit_train_batches=5,
+            # limit_val_batches=5,
         )
     else:
+        print("\n\n")
+        print("*****************")
+        print("*** Using CPU ***")
+        print("*****************")
+        print("\n\n")
         trainer = Trainer(
             max_epochs=config.n_epochs,
             default_root_dir="logs",
