@@ -105,8 +105,8 @@ To see what the dataset looks like, you can investigate how the following visual
 ```sh
 export ARGOVERSE_DATA_ROOT=data/argoverse
 
-python -m svglatte.scripts.argoverse_plot_a_few_images --caching_path_prefix ${ARGOVERSE_DATA_ROOT}/val
-python -m svglatte.scripts.argoverse_visualize_viewbox_sizes --caching_path_prefix ${ARGOVERSE_DATA_ROOT}/val
+python -m svglatte.scripts.argoverse_plot_a_few_images --sequences_path ${ARGOVERSE_DATA_ROOT}/val.sequences.torchsave
+python -m svglatte.scripts.argoverse_visualize_viewbox_sizes --sequences_path ${ARGOVERSE_DATA_ROOT}/val.sequences.torchsave
 ```
 
 ## Running Svg-latte
@@ -118,6 +118,8 @@ The best Svg-latte result on the ArgoSVG dataset can be inspected on [wandb](htt
 - `test/loss_epoch=0.02763601578772068`
 
 To reproduce these results, run the following Svg-latte configuration:
+
+TODO: Update
 
 ```sh
 export ARGOVERSE_DATA_ROOT=data/argoverse
@@ -140,7 +142,7 @@ python -m svglatte.scripts.argoverse_to_svgdataset --input_argoverse_subset_file
 python -m svglatte.scripts.argoverse_to_svgdataset --input_argoverse_subset_file ${ARGOVERSE_DATA_ROOT}/train.sequences.torchsave  --output_deepsvg_format_subset_folder ${ARGOVERSE_DATA_ROOT}/svgdataset/train --workers 40
 ```
 
-You can check the dimensionality of the preprocessed dataset (i.e. the values for `max_num_groups`, `max_seq_len`, `max_total_len`) by running the script below. These numbers are used in the DeepSVG config files and can affect the training speed by alot.
+You can check the dimensionality of the preprocessed dataset (i.e. the values for `max_num_groups`, `max_seq_len`, `max_total_len`) by running the script below. These numbers are used in the DeepSVG config files and can affect the training speed by a lot.
 ```bash
 python -m svglatte.scripts.argoverse_compute_svg_dimensionality_from_svgdataset --svgdataset_path ${ARGOVERSE_DATA_ROOT}/svgdataset
 

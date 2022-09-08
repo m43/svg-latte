@@ -18,11 +18,11 @@ def svgtensor_data_to_svg_file(
         svgtensor_data,
         output_svg_path,
         meta_data,
-        cache_format=ArgoverseDataset.SVGTENSOR_DATA_CACHE_FORMAT,
+        cache_format=ArgoverseDataset.SVGTENSOR_SEQUENCES_FORMAT,
         viewbox_size=255,
 ):
     filename = os.path.splitext(os.path.basename(output_svg_path))[0]
-    if cache_format == ArgoverseDataset.GROUPED_CACHE_FORMAT:
+    if cache_format == ArgoverseDataset.GROUPED_SEQUENCES_FORMAT:
         seq = svgtensor_data
         cmds_grouped = torch.argmax(seq[..., :CMDS_CLASSES], dim=-1)
         args_grouped = seq[..., CMDS_CLASSES:]
@@ -30,7 +30,7 @@ def svgtensor_data_to_svg_file(
         svgtensor.unpad()  # removes eos (and padding, but the preprocessed sequence have no padding)
         svgtensor.drop_sos()
         svgtensor_data = svgtensor.data
-    elif cache_format == ArgoverseDataset.SVGTENSOR_DATA_CACHE_FORMAT:
+    elif cache_format == ArgoverseDataset.SVGTENSOR_SEQUENCES_FORMAT:
         svgtensor_data = svgtensor_data
     else:
         raise RuntimeError(f"Unrecognized cache format: '{cache_format}'")
@@ -74,7 +74,7 @@ def argoverse_to_svg_dataset(caching_path_sequences, output_folder, max_workers)
                                 meta_data, )
                 for i, svgtensor_data in enumerate(svgtensor_data_list)
             ]
-            for f in futures.as_completed(preprocess_requests):
+            for _ in futures.as_completed(preprocess_requests):
                 pbar.update(1)
 
     df = pd.DataFrame(meta_data.values())

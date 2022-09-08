@@ -30,6 +30,7 @@ def get_parser_main_model():
     parser.add_argument('--experiment_name', type=str, default='svglatte')
     parser.add_argument('--checkpoint_path', type=str, default=None, help="Checkpoint used to restore training state")
     parser.add_argument('--experiment_version', type=str, default=None)
+    parser.add_argument('--do_not_add_timestamp_to_experiment_version', action='store_true')
     parser.add_argument('--n_epochs', type=int, default=2000, help='number of epochs')
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size')
     parser.add_argument('--gpus', type=int, default=-1)
@@ -106,11 +107,14 @@ def get_parser_main_model():
     parser.add_argument('--deepsvg_max_seq_len', type=int, default=200, help='maximum length of sequence')
     parser.add_argument('--deepsvg_max_total_len', type=int, default=2000, help='maximum total length of an svg')
     ## argoverse
-    parser.add_argument('--argoverse_cached_sequences_format', type=str,
+    parser.add_argument('--argoverse_sequences_format', type=str,
                         default="onehot_grouped_commands_concatenated_with_grouped_arguments",
                         choices=["onehot_grouped_commands_concatenated_with_grouped_arguments", "svgtensor_data"],
                         help="What is the format of the tensors in the cached sequences.")
-    parser.add_argument('--argoverse_data_root', type=str, default='data/argoverse/')
+    parser.add_argument('--argoverse_train_sequences_path', type=str,
+                        default='data/argoverse/train.sequences.torchsave')
+    parser.add_argument('--argoverse_val_sequences_path', type=str, default='data/argoverse/val.sequences.torchsave')
+    parser.add_argument('--argoverse_test_sequences_path', type=str, default='data/argoverse/test.sequences.torchsave')
     parser.add_argument('--argoverse_rendered_images_width', type=int, default=64, help='Height of rendered images')
     parser.add_argument('--argoverse_rendered_images_height', type=int, default=64, help='Width of rendered images')
     parser.add_argument('--argoverse_fast_run', action='store_true',
@@ -200,8 +204,10 @@ def get_dataset(config):
         )
     elif config.dataset == "argoverse":
         dm = argoverse_dataset.ArgoverseDataModule(
-            cached_sequences_format=config.argoverse_cached_sequences_format,
-            data_root=config.argoverse_data_root,
+            sequences_format=config.argoverse_sequences_format,
+            train_sequences_path=config.argoverse_train_sequences_path,
+            val_sequences_path=config.argoverse_val_sequences_path,
+            test_sequences_path=config.argoverse_test_sequences_path,
             rendered_images_width=config.argoverse_rendered_images_width,
             rendered_images_height=config.argoverse_rendered_images_height,
             batch_size=config.batch_size,
@@ -386,13 +392,15 @@ def main(config):
                                     f"_wd={config.weight_decay}" \
                                     f"_cx={config.cx_loss_w}" \
                                     f"_l1={config.l1_loss_w}"
-    config.experiment_version += f"_{datetime.now().strftime('%m.%d_%H.%M.%S')}"
+    if not config.do_not_add_timestamp_to_experiment_version:
+        config.experiment_version += f"_{datetime.now().strftime('%m.%d_%H.%M.%S')}"
 
     wandb_logger = WandbLogger(
         project=config.experiment_name,
         version=config.experiment_version.replace("=", "-"),
         # settings=wandb.Settings(start_method='thread'),
         settings=wandb.Settings(start_method='fork'),
+        log_model=True,
     )
     wandb_logger.watch(neural_rasterizer)
     tb_logger = TensorBoardLogger("logs", name=config.experiment_name, version=config.experiment_version, )

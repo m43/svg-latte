@@ -13,7 +13,6 @@ from svglatte.utils.util import ensure_dir
 
 def main(args):
     """Visualize different viewboxes for images of different resolution."""
-
     datetime_str = datetime.now().strftime('%m.%d_%H.%M.%S')
     resolutions = [64, 128, 256, 512]
     viewbox_sizes = [24, 64, 128, 256]
@@ -22,7 +21,7 @@ def main(args):
         rendered_images = defaultdict(list)
         for viewbox in viewbox_sizes:
             ds = ArgoverseDataset(
-                caching_path_prefix=args.caching_path_prefix,
+                sequences_path=args.sequences_path,
                 rendered_images_width=res,
                 rendered_images_height=res,
                 remove_redundant_features=True,
@@ -38,7 +37,7 @@ def main(args):
             grid = torchvision.utils.make_grid(imgs, nrow=int(np.sqrt(len(viewbox_sizes))))
             plt.imsave(
                 os.path.join(
-                    args.plots_output_directory,
+                    args.plots_dir,
                     f"{datetime_str}__viewboxes_res={res}x{res}_vboxes={viewbox_sizes_str}.png"
                 ),
                 grid.permute(1, 2, 0).numpy()
@@ -49,13 +48,13 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--caching_path_prefix', type=str, default='data/argoverse/train')
-    parser.add_argument('--plots_output_directory', type=str, default='logs/plot_argoverse')
+    parser.add_argument('--sequences_path', type=str, default='data/argoverse/train.sequences.torchsave')
+    parser.add_argument('--plots_dir', type=str, default='logs/plot_argoverse')
 
     args = parser.parse_args()
     print(f"Args: {args}")
 
     # Create plots dir if it does not exist.
-    ensure_dir(args.plots_output_directory)
+    ensure_dir(args.plots_dir)
 
     main(args)

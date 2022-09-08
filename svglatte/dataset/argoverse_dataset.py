@@ -23,14 +23,14 @@ ARGS_GROUPED_DIM = 13  # 11 + 2
 # SEQ_FEATURE_DIM = CMDS_CLASSES + ARGS_GROUPED_DIM
 
 class ArgoverseDataset(Dataset):
-    GROUPED_CACHE_FORMAT = "onehot_grouped_commands_concatenated_with_grouped_arguments"  # cached tensor dimensionality: N x (7 + 11)
-    SVGTENSOR_DATA_CACHE_FORMAT = "svgtensor_data"  # cached tensor dimensionality: N x (1 + 13)
-    SUPPORTED_CACHED_SEQUENCES_FORMAT = {GROUPED_CACHE_FORMAT, SVGTENSOR_DATA_CACHE_FORMAT}
+    GROUPED_SEQUENCES_FORMAT = "onehot_grouped_commands_concatenated_with_grouped_arguments"  # cached tensor dimensionality: N x (7 + 11)
+    SVGTENSOR_SEQUENCES_FORMAT = "svgtensor_data"  # cached tensor dimensionality: N x (1 + 13)
+    SUPPORTED_SEQUENCES_FORMATS = {GROUPED_SEQUENCES_FORMAT, SVGTENSOR_SEQUENCES_FORMAT}
 
     def __init__(
             self,
-            caching_path_prefix=None,
-            cached_sequences_format=SVGTENSOR_DATA_CACHE_FORMAT,
+            sequences_path=None,
+            sequences_format=SVGTENSOR_SEQUENCES_FORMAT,
             rendered_images_width=64,
             rendered_images_height=64,
             remove_redundant_features=True,
@@ -51,7 +51,7 @@ class ArgoverseDataset(Dataset):
             deepsvg_max_total_len=None,
             deepsvg_pad_val=None,
     ):
-        self._init_cache(caching_path_prefix, cached_sequences_format)
+        self._init_cache(sequences_path, sequences_format)
         self.getitem_cache = None if augment else {}
 
         self.rendered_images_width = rendered_images_width
@@ -99,25 +99,24 @@ class ArgoverseDataset(Dataset):
         else:
             self.sequence_feature_dimenstions = range(CMDS_CLASSES + ARGS_GROUPED_DIM)
 
-    def _init_cache(self, caching_path_prefix, cached_sequences_format):
-        if caching_path_prefix is None:
+    def _init_cache(self, sequences_path, sequences_format):
+        if sequences_path is None:
             return None
 
-        self.cached_sequences_format = cached_sequences_format
-        if self.cached_sequences_format not in ArgoverseDataset.SUPPORTED_CACHED_SEQUENCES_FORMAT:
-            raise ValueError(f"Unrecognized (or misconfigured) cache format: {self.cached_sequences_format}."
-                             f" Cache format must be one of {ArgoverseDataset.SUPPORTED_CACHED_SEQUENCES_FORMAT}.")
+        self.sequences_format = sequences_format
+        if self.sequences_format not in ArgoverseDataset.SUPPORTED_SEQUENCES_FORMATS:
+            raise ValueError(f"Unrecognized (or misconfigured) cache format: {self.sequences_format}."
+                             f" Cache format must be one of {ArgoverseDataset.SUPPORTED_SEQUENCES_FORMATS}.")
 
-        self.caching_path_prefix = caching_path_prefix
-        self.caching_path_sequences = f"{caching_path_prefix}.sequences.torchsave"
-        assert os.path.isfile(self.caching_path_sequences)
-        self._sequences = torch.load(self.caching_path_sequences)
+        self.sequences_path = sequences_path
+        assert os.path.isfile(self.sequences_path)
+        self._sequences = torch.load(self.sequences_path)
 
     def _load_svg_from_cache(self, idx):
         seq = self._sequences[idx]  # N x 7+11
 
         # seq (pytorch tensor that was cached) to svgtensor (instance of SVGTensor)
-        if self.cached_sequences_format == ArgoverseDataset.GROUPED_CACHE_FORMAT:
+        if self.sequences_format == ArgoverseDataset.GROUPED_SEQUENCES_FORMAT:
             cache_viewbox_size = 24
 
             cmds_grouped = torch.argmax(seq[..., :CMDS_CLASSES], dim=-1)
@@ -127,7 +126,7 @@ class ArgoverseDataset(Dataset):
             svgtensor.unpad()  # removes eos (and padding, but the preprocessed sequence have no padding)
             svgtensor.drop_sos()
 
-        elif self.cached_sequences_format == ArgoverseDataset.SVGTENSOR_DATA_CACHE_FORMAT:
+        elif self.sequences_format == ArgoverseDataset.SVGTENSOR_SEQUENCES_FORMAT:
             cache_viewbox_size = 255
 
             svgtensor_data = seq
@@ -279,7 +278,9 @@ class ArgoverseDataset(Dataset):
 class ArgoverseDataModule(pl.LightningDataModule):
     def __init__(
             self,
-            data_root,
+            train_sequences_path,
+            val_sequences_path,
+            test_sequences_path,
             pad_val=-1,
             batch_size: int = 32,
             fast_run: bool = False,
@@ -289,11 +290,15 @@ class ArgoverseDataModule(pl.LightningDataModule):
             augment_train=True,
             augment_val=False,
             augment_test=False,
+
             **kwargs
     ):
         super(ArgoverseDataModule, self).__init__()
 
-        self.data_root = data_root
+        self.train_sequences_path = train_sequences_path
+        self.val_sequences_path = val_sequences_path
+        self.test_sequences_path = test_sequences_path
+
         self.pad_val = pad_val
         self.fast_run = fast_run
         self.batch_size = batch_size
@@ -320,27 +325,30 @@ class ArgoverseDataModule(pl.LightningDataModule):
         pass
 
     def setup(self, stage: Optional[str] = None) -> None:
+        if stage != "fit":
+            return
+
         if self.fast_run:
             print("Fast run (train_ds = test_ds = val_ds)")
             self.val_ds = ArgoverseDataset(
-                os.path.join(self.data_root, f"val"),
+                self.val_sequences_path,
                 augment=self.augment_val,
                 **self.dataset_kwargs
             )
             self.train_ds = self.test_ds = self.val_ds
         else:
             self.train_ds = ArgoverseDataset(
-                os.path.join(self.data_root, f"train"),
+                self.train_sequences_path,
                 augment=self.augment_train,
                 **self.dataset_kwargs
             )
             self.val_ds = ArgoverseDataset(
-                os.path.join(self.data_root, f"val"),
+                self.val_sequences_path,
                 augment=self.augment_val,
                 **self.dataset_kwargs
             )
             self.test_ds = ArgoverseDataset(
-                os.path.join(self.data_root, f"test"),
+                self.test_sequences_path,
                 augment=self.augment_test,
                 **self.dataset_kwargs
             )
@@ -374,6 +382,13 @@ class ArgoverseDataModule(pl.LightningDataModule):
         # virtual memory gets allocated seemed to remove the memory problem.
         iter(self.train_dl)
         iter(self.val_dl)
+
+    def teardown(self, stage: Optional[str] = None) -> None:
+        # Delete the dataloaders to free up memory so that the test dataloader can be
+        # created and not give the `OSError: [Errno 12] Cannot allocate memory` error
+        if stage == "fit":
+            del self.train_dl
+            del self.val_dl
 
     def train_dataloader(self):
         return self.train_dl
