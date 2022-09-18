@@ -74,6 +74,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DeepSVG Trainer')
     parser.add_argument("--config-module", type=str, required=True)
     parser.add_argument("--log-dir", type=str, default="./logs")
+    parser.add_argument("--experiment_identifier", type=str, default=None)
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--resume", action="store_true", default=False)
     parser.add_argument("--eval-only", action="store_true", default=False)
@@ -88,5 +89,6 @@ if __name__ == "__main__":
     cfg = importlib.import_module(args.config_module).Config(num_gpus=args.num_gpus)
     model_name, experiment_name = args.config_module.split(".")[-2:]
 
-    train(cfg, model_name, experiment_name, log_dir=args.log_dir, debug=args.debug, resume=args.resume,
+    train(cfg, model_name, experiment_name, log_dir=args.log_dir, debug=args.debug,
+          experiment_identifier=args.experiment_identifier, resume=args.resume,
           eval_only=args.eval_only, eval_l1_loss=True, eval_l1_loss_viewbox=args.l1_viewbox)

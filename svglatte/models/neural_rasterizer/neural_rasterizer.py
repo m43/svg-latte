@@ -205,13 +205,13 @@ class NeuralRasterizer(LightningModule):
             self.log(f'Loss/{subset}/verbose/l1_loss_{df_key}', float(l1_elementwise_losses_df[df_key]),
                      on_step=False, on_epoch=True, prog_bar=True, logger=True, rank_zero_only=True)
 
-        for logger in self.loggers:
-            if type(logger) == WandbLogger:
-                logger.experiment.log(
-                    {
-                        f'Loss/{subset}/verbose/l1_loss_histogram': wandb.Histogram(l1_elementwise_losses)
-                    }
-                )
+        # for logger in self.loggers:
+        #     if type(logger) == WandbLogger:
+        #         logger.experiment.log(
+        #             {
+        #                 f'Loss/{subset}/verbose/l1_loss_histogram': wandb.Histogram(l1_elementwise_losses)
+        #             }
+        #         )
 
     def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
         self.training_epoch_end(outputs, "val")

@@ -397,7 +397,7 @@ def main(config):
 
     wandb_logger = WandbLogger(
         project=config.experiment_name,
-        version=config.experiment_version.replace("=", "-"),
+        version=config.experiment_version.replace("=", "-").replace("+", "-"),
         # settings=wandb.Settings(start_method='thread'),
         settings=wandb.Settings(start_method='fork'),
         log_model=True,

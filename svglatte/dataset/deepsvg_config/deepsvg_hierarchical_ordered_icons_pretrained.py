@@ -27,7 +27,7 @@ class Config(Config):
         # self.train_ratio = 0.999
         self.val_every = 1000
         # self.pretrained_path = "logs/models/deepsvg/hierarchical_ordered/000020.pth.tar"
-        # self.pretrained_path = "pretrained/hierarchical_ordered.pth.tar"
+        self.pretrained_path = "pretrained/hierarchical_ordered.pth.tar"
 
         self.data_dir = "./data/deepsvg_icons_svgtensordataset/icons_tensor/"
         self.meta_filepath = "./data/deepsvg_icons_svgtensordataset/icons_meta.csv"
