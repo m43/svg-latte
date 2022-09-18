@@ -1,5 +1,6 @@
 import os
 import pathlib
+import random
 
 DEBUG_HEADER = """#SBATCH --chdir /scratch/izar/rajic/svg-latte
 #SBATCH --nodes=1
@@ -12,7 +13,29 @@ DEBUG_HEADER = """#SBATCH --chdir /scratch/izar/rajic/svg-latte
 #SBATCH --time=1:00:00
 """
 
-PRODUCTION_HEADER = """#SBATCH --chdir /scratch/izar/rajic/svg-latte
+PRODUCTION_HEADER_1_GPU = """#SBATCH --chdir /scratch/izar/rajic/svg-latte
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=20
+#SBATCH --mem=90G
+#SBATCH --partition=gpu
+#SBATCH --qos=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --time=72:00:00
+"""
+
+PRODUCTION_HEADER_2_GPUS = """#SBATCH --chdir /scratch/izar/rajic/svg-latte
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=40
+#SBATCH --mem=180G
+#SBATCH --partition=gpu
+#SBATCH --qos=gpu
+#SBATCH --gres=gpu:2
+#SBATCH --time=72:00:00
+"""
+
+PRODUCTION_HEADER_2_GPUS_W_RAM = """#SBATCH --chdir /scratch/izar/rajic/svg-latte
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
@@ -24,10 +47,10 @@ PRODUCTION_HEADER = """#SBATCH --chdir /scratch/izar/rajic/svg-latte
 """
 
 
-def fill_template(i, sbatch_id, command, debug):
+def fill_template(command, header):
     return f"""#!/bin/bash
-{DEBUG_HEADER if debug else PRODUCTION_HEADER}
-#SBATCH -o ./slurm_logs/slurm-{sbatch_id}-{i:02d}-%j.out
+{header}
+#SBATCH -o ./slurm_logs/%x-%j.out
 
 set -e
 set -o xtrace
@@ -41,12 +64,12 @@ module load cuda/11.0.2
 
 # Environment
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate svglatte
+conda activate svglatte-pl
 export PYTHONPATH="$PYTHONPATH:$PWD/deepsvg"
 
 # Run
 date
-printf "Run configured and environment setup. Gonna run now.\\n\\n"
+printf "Run configured and environment set up. Gonna run now.\\n\\n"
 {command}
 echo FINISHED at $(date)
 """
@@ -722,18 +745,292 @@ sbatch_configurations = {
         ]
 
     },
+    "sbatch_10": {
+        "debug": False,
+        "commands": [x.format(i=i + 1) for i, x in enumerate([
+            f"python -m svglatte.train \\\n"
+            f" --experiment_name svg-latte-hparamsearch \\\n"
+            f" --experiment_version "
+            f"'S10.{{i:02d}}__{enc_type.title()}-{lstm_layers:02d}-{dec_filters:02d}__e={e:03d}__bs={bs:03d}__lre={lr_e:.1e}__lrd={lr_d:.1e}' \\\n"
+            f" --seed {seed} \\\n"
+            f" --gpus -1 \\\n"
+            f" --n_epochs {e} \\\n"
+            f" --early_stopping_patience 80 \\\n"
+            f" --check_val_every_n_epoch {val_every} \\\n"
+            f" --batch_size {bs} \\\n"
+            f" --encoder_lr {lr_e} \\\n"
+            f" --decoder_lr {lr_d} \\\n"
+            f" --encoder_weight_decay {wd_e} \\\n"
+            f" --decoder_weight_decay {wd_d} \\\n"
+            f" --encoder_type {enc_type} \\\n"
+            f" --lstm_num_layers {lstm_layers} \\\n"
+            f" --latte_ingredients {latte} \\\n"
+            f" --decoder_n_filters_in_last_conv_layer {dec_filters} \\\n"
+            f" --no_layernorm \\\n"
+            f" --cx_loss_w {cx_loss} \\\n"
+            f" --dataset argoverse \\\n"
+            f" --argoverse_sequences_format svgtensor_data \\\n"
+            f" --argoverse_train_sequences_path data/argoverse/train.split_1.sequences.torchsave \\\n"
+            f" --argoverse_val_sequences_path data/argoverse/train.split_2.sequences.torchsave \\\n"
+            f" --argoverse_test_sequences_path data/argoverse/val.sequences.torchsave \\\n"
+            f" --argoverse_train_workers 20 \\\n"
+            f" --argoverse_val_workers 2 \\\n"
+            f" --argoverse_rendered_images_width 128 \\\n"
+            f" --argoverse_rendered_images_height 128 \\\n"
+            f" --argoverse_augment_train \\\n"
+            f" --argoverse_zoom_preprocess_factor 0.70710678118 \\\n"
+            f" --precision 16 \\\n"
+            f" --gradient_clip_val 1.0 \\\n"
+            # Varying:
+            for (enc_type, lstm_layers) in [("fc_lstm", 8), ("fc_lstm", 4), ("residual_lstm", 6)]
+            for e, bs, val_every in [(300, 512, 10), (100, 32, 5)]
+            for lr_e in [0.084, 0.0084, 0.00042]
+            for lr_d in [0.0084, 0.00042, 0.000021]
+            # Fixed:
+            for seed in [72]
+            for wd_e, wd_d in [(0.0, 0.0)]
+            for latte in ["c"]
+            for dec_filters in [16]
+            for cx_loss in [0.0]
+        ])]
+    },
+    "sbatch_11w": {
+        "debug": False,
+        "commands": [x.format(i=i + 1) for i, x in enumerate([
+            f"python -m svglatte.train \\\n"
+            f" --experiment_name svg-latte-hparamsearch \\\n"
+            f" --experiment_version "
+            f"'S11.WD.{{i:02d}}__latte={latte}__dec_filters={dec_filters}__wde={wd_e:.1e}__wdd={wd_d:.1e}' \\\n"
+            f" --seed {seed} \\\n"
+            f" --gpus -1 \\\n"
+            f" --n_epochs {e} \\\n"
+            f" --early_stopping_patience 80 \\\n"
+            f" --check_val_every_n_epoch {val_every} \\\n"
+            f" --batch_size {bs} \\\n"
+            f" --encoder_lr {lr_e} \\\n"
+            f" --decoder_lr {lr_d} \\\n"
+            f" --encoder_weight_decay {wd_e} \\\n"
+            f" --decoder_weight_decay {wd_d} \\\n"
+            f" --encoder_type {enc_type} \\\n"
+            f" --lstm_num_layers {lstm_layers} \\\n"
+            f" --latte_ingredients {latte} \\\n"
+            f" --decoder_n_filters_in_last_conv_layer {dec_filters} \\\n"
+            f" --no_layernorm \\\n"
+            f" --cx_loss_w {cx_loss} \\\n"
+            f" --dataset argoverse \\\n"
+            f" --argoverse_sequences_format svgtensor_data \\\n"
+            f" --argoverse_train_sequences_path data/argoverse/train.split_1.sequences.torchsave \\\n"
+            f" --argoverse_val_sequences_path data/argoverse/train.split_2.sequences.torchsave \\\n"
+            f" --argoverse_test_sequences_path data/argoverse/val.sequences.torchsave \\\n"
+            f" --argoverse_train_workers {40 if dec_filters == 64 else 20} \\\n"
+            f" --argoverse_val_workers {4 if dec_filters == 64 else 3} \\\n"
+            f" --argoverse_rendered_images_width 128 \\\n"
+            f" --argoverse_rendered_images_height 128 \\\n"
+            f" {augment_train_flag} --argoverse_zoom_preprocess_factor 0.70710678118 \\\n"
+            f" --precision 16 \\\n"
+            f" --gradient_clip_val 1.0 \\\n"
+            # Varying:
+            for wd_e in [0.0, 0.000005]
+            for wd_d in [0.0, 0.00001, 0.000005]
+            for latte in ["h", "hc", "o"]
+            for dec_filters in [16, 64]
+            # Fixed:
+            for seed in [72]
+            for enc_type in ["fc_lstm"]
+            for lstm_layers in [8]
+            for e in [300]
+            for bs in [512]
+            for augment_train_flag in ["--argoverse_augment_train"]  # [""]
+            for val_every in [10]
+            for lr_e in [0.00042]
+            for lr_d in [0.000021]
+            for cx_loss in [0.0]
+        ])]
+    },
+    "sbatch_12": {
+        "debug": False,
+        "commands": [x.format(i=i + 1) for i, x in enumerate([
+            f"python -m svglatte.train \\\n"
+            f" --experiment_name svg-latte-hparamsearch \\\n"
+            f" --experiment_version "
+            f"'S12.{{i:02d}}__BestHparams__Seed={seed}' \\\n"
+            f" --seed {seed} \\\n"
+            f" --gpus -1 \\\n"
+            f" --n_epochs {e} \\\n"
+            f" --early_stopping_patience 80 \\\n"
+            f" --check_val_every_n_epoch {val_every} \\\n"
+            f" --batch_size {bs} \\\n"
+            f" --encoder_lr {lr_e} \\\n"
+            f" --decoder_lr {lr_d} \\\n"
+            f" --encoder_weight_decay {wd_e} \\\n"
+            f" --decoder_weight_decay {wd_d} \\\n"
+            f" --encoder_type {enc_type} \\\n"
+            f" --lstm_num_layers {lstm_layers} \\\n"
+            f" --latte_ingredients {latte} \\\n"
+            f" --decoder_n_filters_in_last_conv_layer {dec_filters} \\\n"
+            f" --no_layernorm \\\n"
+            f" --cx_loss_w {cx_loss} \\\n"
+            f" --dataset argoverse \\\n"
+            f" --argoverse_sequences_format svgtensor_data \\\n"
+            f" --argoverse_train_sequences_path data/argoverse/train.sequences.torchsave \\\n"
+            f" --argoverse_val_sequences_path data/argoverse/val.sequences.torchsave \\\n"
+            f" --argoverse_test_sequences_path data/argoverse/test.sequences.torchsave \\\n"
+            f" --argoverse_train_workers 40 \\\n"
+            f" --argoverse_val_workers 3 \\\n"
+            f" --argoverse_rendered_images_width 128 \\\n"
+            f" --argoverse_rendered_images_height 128 \\\n"
+            f" {augment_train_flag} --argoverse_zoom_preprocess_factor 0.70710678118 \\\n"
+            f" --precision 16 \\\n"
+            f" --gradient_clip_val 1.0 \\\n"
+            # Varying:
+            for seed in [72, 9, 27, 32, 36, 54, 64, 180]
+            # Fixed:
+            for enc_type in ["fc_lstm"]
+            for lstm_layers in [8]
+            for e in [600]
+            for bs in [512]
+            for augment_train_flag in ["--argoverse_augment_train"]  # [""]
+            for val_every in [20]
+            for lr_e in [0.00042]
+            for lr_d in [0.000021]
+            for wd_e in [0.0]
+            for wd_d in [0.0]
+            for latte in ["c"]
+            for dec_filters in [16]
+            for cx_loss in [0.0]
+        ])]
+    },
+    "sbatch_13": {
+        "debug": False,
+        "commands": [x.format(i=i + 1) for i, x in enumerate([
+            f"python -m svglatte.train \\\n"
+            f" --experiment_name svg-latte-hparamsearch \\\n"
+            f" --experiment_version "
+            f"'S13.{{i:02d}}__BestHparams__Viewbox={argoverse_viewbox}__Seed={seed}' \\\n"
+            f" --seed {seed} \\\n"
+            f" --gpus -1 \\\n"
+            f" --n_epochs {e} \\\n"
+            f" --early_stopping_patience 80 \\\n"
+            f" --check_val_every_n_epoch {val_every} \\\n"
+            f" --batch_size {bs} \\\n"
+            f" --encoder_lr {lr_e} \\\n"
+            f" --decoder_lr {lr_d} \\\n"
+            f" --encoder_weight_decay {wd_e} \\\n"
+            f" --decoder_weight_decay {wd_d} \\\n"
+            f" --encoder_type {enc_type} \\\n"
+            f" --lstm_num_layers {lstm_layers} \\\n"
+            f" --latte_ingredients {latte} \\\n"
+            f" --decoder_n_filters_in_last_conv_layer {dec_filters} \\\n"
+            f" --no_layernorm \\\n"
+            f" --cx_loss_w {cx_loss} \\\n"
+            f" --dataset argoverse \\\n"
+            f" --argoverse_sequences_format svgtensor_data \\\n"
+            f" --argoverse_train_sequences_path data/argoverse/train.sequences.torchsave \\\n"
+            f" --argoverse_val_sequences_path data/argoverse/val.sequences.torchsave \\\n"
+            f" --argoverse_test_sequences_path data/argoverse/test.sequences.torchsave \\\n"
+            f" --argoverse_train_workers 40 \\\n"
+            f" --argoverse_val_workers 3 \\\n"
+            f" --argoverse_rendered_images_width 128 \\\n"
+            f" --argoverse_rendered_images_height 128 \\\n"
+            f" {augment_train_flag} --argoverse_zoom_preprocess_factor 0.70710678118 \\\n"
+            f" --precision 16 \\\n"
+            f" --gradient_clip_val 1.0 \\\n"
+            f" --argoverse_viewbox {argoverse_viewbox} \\\n"
+            # Special:
+            for argoverse_viewbox in [64]
+            # Fixed:
+            for seed in [72]
+            for enc_type in ["fc_lstm"]
+            for lstm_layers in [8]
+            for e in [600]
+            for bs in [512]
+            for augment_train_flag in ["--argoverse_augment_train"]  # [""]
+            for val_every in [20]
+            for lr_e in [0.00042]
+            for lr_d in [0.000021]
+            for wd_e in [0.0]
+            for wd_d in [0.0]
+            for latte in ["c"]
+            for dec_filters in [16]
+            for cx_loss in [0.0]
+        ])]
+    },
+    "sbatch_14": {
+        "debug": False,
+        "commands": [x.format(i=i + 1) for i, x in enumerate([
+            f"python -m svglatte.train \\\n"
+            f" --experiment_name svg-latte-hparamsearch \\\n"
+            f" --experiment_version "
+            f"'S14.{{i:02d}}__BestHparams__CX-Loss={cx_loss:.1e}__Seed={seed}' \\\n"
+            f" --seed {seed} \\\n"
+            f" --gpus -1 \\\n"
+            f" --n_epochs {e} \\\n"
+            f" --early_stopping_patience 80 \\\n"
+            f" --check_val_every_n_epoch {val_every} \\\n"
+            f" --batch_size {bs} \\\n"
+            f" --encoder_lr {lr_e} \\\n"
+            f" --decoder_lr {lr_d} \\\n"
+            f" --encoder_weight_decay {wd_e} \\\n"
+            f" --decoder_weight_decay {wd_d} \\\n"
+            f" --encoder_type {enc_type} \\\n"
+            f" --lstm_num_layers {lstm_layers} \\\n"
+            f" --latte_ingredients {latte} \\\n"
+            f" --decoder_n_filters_in_last_conv_layer {dec_filters} \\\n"
+            f" --no_layernorm \\\n"
+            f" --cx_loss_w {cx_loss} \\\n"
+            f" --dataset argoverse \\\n"
+            f" --argoverse_sequences_format svgtensor_data \\\n"
+            f" --argoverse_train_sequences_path data/argoverse/train.sequences.torchsave \\\n"
+            f" --argoverse_val_sequences_path data/argoverse/val.sequences.torchsave \\\n"
+            f" --argoverse_test_sequences_path data/argoverse/test.sequences.torchsave \\\n"
+            f" --argoverse_train_workers 40 \\\n"
+            f" --argoverse_val_workers 3 \\\n"
+            f" --argoverse_rendered_images_width 128 \\\n"
+            f" --argoverse_rendered_images_height 128 \\\n"
+            f" {augment_train_flag} --argoverse_zoom_preprocess_factor 0.70710678118 \\\n"
+            f" --precision 16 \\\n"
+            f" --gradient_clip_val 1.0 \\\n"
+            # Special:
+            for cx_loss in [0.1]
+            for bs in [256]
+            # Fixed:
+            for seed in [72]
+            for enc_type in ["fc_lstm"]
+            for lstm_layers in [8]
+            for e in [600]
+            for augment_train_flag in ["--argoverse_augment_train"]  # [""]
+            for val_every in [20]
+            for lr_e in [0.00042]
+            for lr_d in [0.000021]
+            for wd_e in [0.0]
+            for wd_d in [0.0]
+            for latte in ["c"]
+            for dec_filters in [16]
+        ])]
+    },
 }
 
+random.seed(72)
+random.shuffle(sbatch_configurations["sbatch_11w"]["commands"])
+n = len(sbatch_configurations["sbatch_11w"]["commands"])
+sbatch_configurations["sbatch_11w"]["commands"] = sbatch_configurations["sbatch_11w"]["commands"][:int(n * 0.8)]
+
 SBATCH_IDS = [
-    'sbatch_01',
-    'sbatch_02',
-    'sbatch_03',
-    'sbatch_04',
-    'sbatch_05',
-    'sbatch_06',
-    'sbatch_07',
-    'sbatch_08',
-    'sbatch_09',
+    # 'sbatch_01',
+    # 'sbatch_02',
+    # 'sbatch_03',
+    # 'sbatch_04',
+    # 'sbatch_05',
+    # 'sbatch_06',
+    # 'sbatch_07',
+    # 'sbatch_08',
+    # 'sbatch_09',
+    # 'sbatch_10',
+    # 'sbatch_11',
+    # 'sbatch_11w',
+    'sbatch_12',
+    'sbatch_13',
+    'sbatch_14',
 ]
 for SBATCH_ID in SBATCH_IDS:
     OUTPUT_FOLDER = f"./sbatch/{SBATCH_ID}"
@@ -746,8 +1043,18 @@ for SBATCH_ID in SBATCH_IDS:
 
         for i, cmd in enumerate(sbatch_config["commands"]):
             i += 1  # start from 1
-            script_path = os.path.join(OUTPUT_FOLDER, f"svglatte-{SBATCH_ID.split('_')[-1]}-{i:02d}.sh")
+            sbatch_id = SBATCH_ID if not "_latte=o_" in cmd else SBATCH_ID + "o"
+            script_path = os.path.join(OUTPUT_FOLDER, f"svglatte-{sbatch_id.split('_')[-1]}-{i:02d}.sh")
             with open(script_path, "w") as f:
-                f.write(fill_template(i=i, sbatch_id=SBATCH_ID, command=cmd, debug=sbatch_config.get("debug", False)))
+                if sbatch_config.get("debug", False):
+                    header = DEBUG_HEADER
+                else:
+                    if "dec_filters=64" in cmd:
+                        header = PRODUCTION_HEADER_2_GPUS
+                    elif "BestHparams" in cmd:
+                        header = PRODUCTION_HEADER_2_GPUS_W_RAM
+                    else:
+                        header = PRODUCTION_HEADER_1_GPU
+                f.write(fill_template(command=cmd, header=header))
             print(f"Created script: {script_path}")
         print("Done")
