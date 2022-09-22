@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:2
 #SBATCH --time=72:00:00
 
-#SBATCH -o ./slurm_logs/slurm-sbatch_deepsvg_reproduction-%j.out
+#SBATCH -o ./slurm_logs/%x-%j.out
 
 set -e
 set -o xtrace
@@ -30,6 +30,6 @@ export PYTHONPATH="$PYTHONPATH:$PWD/deepsvg"
 date
 printf "Run configured and environment set up. Gonna run now.\n\n"
 python -m svglatte.train_deepsvg --num_gpus 2 \
-  --config-module svglatte.dataset.deepsvg_config.deepsvg_hierarchical_ordered_icons_w_whole_train_set
+  --config-module svglatte.dataset.deepsvg_config.deepsvg_hierarchical_ordered_icons_w_whole_train_set --eval-only --resume --experiment_identifier deepsvg_config__deepsvg_hierarchical_ordered_icons_w_whole_train_set__2022.09.18_11.34.53_540140
 
 echo FINISHED at $(date)

@@ -316,6 +316,8 @@ class ArgoverseDataModule(pl.LightningDataModule):
         self.val_ds = None
         self.test_ds = None
 
+        self._setup_called = False
+
         def collate_fn(batch):
             return pad_collate_fn(batch, self.pad_val)
 
@@ -325,8 +327,9 @@ class ArgoverseDataModule(pl.LightningDataModule):
         pass
 
     def setup(self, stage: Optional[str] = None) -> None:
-        if stage != "fit":
+        if self._setup_called and stage != "fit":
             return
+        self._setup_called = True
 
         if self.fast_run:
             print("Fast run (train_ds = test_ds = val_ds)")

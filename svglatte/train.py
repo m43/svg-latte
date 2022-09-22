@@ -31,6 +31,7 @@ def get_parser_main_model():
     parser.add_argument('--checkpoint_path', type=str, default=None, help="Checkpoint used to restore training state")
     parser.add_argument('--experiment_version', type=str, default=None)
     parser.add_argument('--do_not_add_timestamp_to_experiment_version', action='store_true')
+    parser.add_argument('--test_only', action='store_true')
     parser.add_argument('--n_epochs', type=int, default=2000, help='number of epochs')
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size')
     parser.add_argument('--gpus', type=int, default=-1)
@@ -368,6 +369,7 @@ def main(config):
     pl.seed_everything(config.seed, workers=True)
 
     dm, seq_feature_dim, deepsvg_encoder_config = get_dataset(config)
+    print(f"seq_feature_dim={seq_feature_dim}")
     config.lstm_input_size = seq_feature_dim
 
     neural_rasterizer = get_neural_rasterizer(config, deepsvg_encoder_config)
@@ -459,6 +461,12 @@ def main(config):
         print(f"config.auto_lr_find={config.auto_lr_find}")
         trainer.tune(neural_rasterizer, dm)
         print("Finished tuning")
+
+    if args.test_only:
+        assert config.checkpoint_path is not None
+        trainer.test(neural_rasterizer, dm, ckpt_path=config.checkpoint_path)
+        return
+
     trainer.fit(neural_rasterizer, dm, ckpt_path=config.checkpoint_path)
     print(f"best_model_path={model_checkpoint_callback.best_model_path}")
     trainer.test(neural_rasterizer, dm, ckpt_path='best')

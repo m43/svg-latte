@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:2
 #SBATCH --time=72:00:00
 
-#SBATCH -o ./slurm_logs/slurm-sbatch_deepsvg_reproduction-%j.out
+#SBATCH -o ./slurm_logs/%x-%j.out
 
 set -e
 set -o xtrace
