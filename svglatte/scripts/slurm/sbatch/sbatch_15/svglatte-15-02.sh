@@ -60,6 +60,7 @@ python -m svglatte.train \
  --argoverse_augment_train --argoverse_zoom_preprocess_factor 0.70710678118 \
  --precision 16 \
  --gradient_clip_val 1.0 \
- --seq_feature_dim 120
+ --seq_feature_dim 120 \
+ --embedding_style nerf
 
 echo FINISHED at $(date)
