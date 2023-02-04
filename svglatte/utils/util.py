@@ -19,7 +19,7 @@ def get_str_formatted_time() -> str:
     Returns
     -------
     str
-        The current time in the specified format
+        The current time
     """
     return datetime.now().strftime('%Y.%m.%d_%H.%M.%S')
 
@@ -68,8 +68,8 @@ def nice_print(msg, last=False):
 class AttrDict(dict):
     """
     A dictionary class that can be accessed with attributes.
-    Note that the dictionary keys must be strings
-    and follow attribute naming rules to be accessible as attributes,
+    Note that the dictionary keys must be strings and
+    follow attribute naming rules to be accessible as attributes,
     e.g., the key "123xyz" will give a syntax error.
 
     Usage:
@@ -97,7 +97,7 @@ def ensure_dir(dirname):
     Parameters
     ----------
     dirname : str or pathlib.Path
-        The directory to be ensured
+        The directory, the existence of which will be ensured
 
     Returns
     -------
@@ -180,7 +180,7 @@ class GaussianEmbedder(Embedder):
     scale : int, optional
         The scale of the randomly sampled Gaussian distribution
     embedding_size : int, optional
-        The size of the outputted embedding, i.e., the number
+        The size of the outputted embedding
 
     Attributes
     ----------
