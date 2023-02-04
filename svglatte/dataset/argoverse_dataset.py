@@ -14,7 +14,7 @@ from deepsvg.difflib.tensor import SVGTensor
 from deepsvg.svg_dataset import SVGDataset
 from deepsvg.svglib.geom import Bbox, Angle, Point
 from deepsvg.svglib.svg import SVG
-from svglatte.utils.util import pad_collate_fn
+from svglatte.utils.util import pad_collate_fn, Embedder
 
 CMDS_CLASSES = 7
 ARGS_GROUPED_DIM = 13  # 11 + 2
@@ -290,6 +290,7 @@ class ArgoverseDataModule(pl.LightningDataModule):
             augment_train=True,
             augment_val=False,
             augment_test=False,
+            embedding_style=None,
 
             **kwargs
     ):
@@ -318,8 +319,10 @@ class ArgoverseDataModule(pl.LightningDataModule):
 
         self._setup_called = False
 
+        self.embedder = Embedder.factory(embedding_style) if embedding_style is not None else None
+
         def collate_fn(batch):
-            return pad_collate_fn(batch, self.pad_val)
+            return pad_collate_fn(batch, self.pad_val, self.embedder)
 
         self.collate_fn = collate_fn if not self.dataset_kwargs['return_deepsvg_model_input'] else None
 

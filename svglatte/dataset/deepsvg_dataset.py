@@ -193,7 +193,8 @@ def load_dataset_splits(
         test_ratio=0.15,
         cache_to_disk=True,
         clean_disk_cache=False,
-        seed=72
+        seed=72,
+        embedding_style=None,
 ):
     train_df_cache_path = os.path.join(data_root, f"train_df.csv") if cache_to_disk else None
     val_df_cache_path = os.path.join(data_root, f"val_df.csv") if cache_to_disk else None
@@ -251,8 +252,10 @@ def load_dataset_splits(
     val_ds = DeepSVGDatasetNoCache(val_svgtensor_ds)
     test_ds = DeepSVGDatasetNoCache(test_svgtensor_ds)
 
+    embedder = Embedder.factory(embedding_style) if embedding_style is not None else None
+
     def collate_fn(batch):
-        return pad_collate_fn(batch, train_svgtensor_ds.PAD_VAL)
+        return pad_collate_fn(batch, train_svgtensor_ds.PAD_VAL, embedder)
 
     return train_ds, val_ds, test_ds, collate_fn
 
@@ -268,6 +271,7 @@ class DeepSVGDataModule(pl.LightningDataModule):
             batch_size: int = 32,
             cache_to_disk=True,
             clean_disk_cache=False,
+            embedding_style=None,
     ):
         super(DeepSVGDataModule, self).__init__()
         self.batch_size = batch_size
@@ -279,7 +283,8 @@ class DeepSVGDataModule(pl.LightningDataModule):
             max_seq_len=max_seq_len,
             max_total_len=max_total_len,
             cache_to_disk=cache_to_disk,
-            clean_disk_cache=clean_disk_cache
+            clean_disk_cache=clean_disk_cache,
+            embedding_style=embedding_style,
         )
 
         self.train_mean = self.train_ds.seq_mean

@@ -95,6 +95,8 @@ def get_parser_main_model():
     parser.add_argument('--clean_disk_cache', action='store_true', help='')
     parser.add_argument('--dataset', type=str, default='deepvecfont', choices=['deepvecfont', 'deepsvg', 'argoverse'])
     parser.add_argument('--standardize_input_sequences', action='store_true', help='')
+    parser.add_argument('--embedding_style', type=str, default=None,
+                        help='What input embedding style to use, see `utils.util.Embedder.factory`.')
     ## deepvecfont
     parser.add_argument('--deepvecfont_data_root', type=str, default='data/vecfont_dataset')
     parser.add_argument('--deepvecfont_max_seq_len', type=int, default=51, help='maximum length of sequence')
@@ -182,6 +184,7 @@ def get_dataset(config):
 
     if config.dataset == "deepvecfont":
         seq_feature_dim = deepvecfont_dataset.SEQ_FEATURE_DIM
+        assert config.embedding_style is None, "embedding_style not implemented for DeepVecFontDataModule"
         dm = deepvecfont_dataset.DeepVecFontDataModule(
             data_root=config.deepvecfont_data_root,
             max_seq_len=config.deepvecfont_max_seq_len,
@@ -202,6 +205,7 @@ def get_dataset(config):
             batch_size=config.batch_size,
             cache_to_disk=config.cache_to_disk,
             clean_disk_cache=config.clean_disk_cache,
+            embedding_style=config.embedding_style,
         )
     elif config.dataset == "argoverse":
         dm = argoverse_dataset.ArgoverseDataModule(
@@ -229,6 +233,7 @@ def get_dataset(config):
             augment_translate=config.argoverse_augment_translate,
             numericalize=config.argoverse_numericalize,
             canonicalize_svg=config.argoverse_canonicalize_svg,
+            embedding_style=config.embedding_style,
             **deepsvg_encoder_config_for_argoverse
         )
         # TODO:
