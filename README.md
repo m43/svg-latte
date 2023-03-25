@@ -13,7 +13,7 @@
 
 |                  Train progress over time                  |         Validation over time         |
 |:----------------------------------------------------------:|:------------------------------------:|
-| [![Train](assets/s9.01.train.gif)](http://videoblocks.com) | [![Valid](assets/s9.01.val.gif)](aa) |
+| ![Train](assets/s9.01.train.gif) | ![Valid](assets/s9.01.val.gif) |
 
 [//]: # ()
 
