@@ -59,8 +59,8 @@ conda create -n svglatte python=3.9 -y
 conda activate svglatte
 ```
 
-Then, install [PyTorch](https://pytorch.org/) 1.11.0 and [torchvision](https://pytorch.org/vision/stable/index.html)
-0.12.0, followed by other packages. For example with CUDA 11 support:
+Then, install [PyTorch](https://pytorch.org/) 1.12.1 and [torchvision](https://pytorch.org/vision/stable/index.html)
+0.13.1, followed by other packages. For example with CUDA 11 support:
 
 ```bash
 conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=11.3 -c pytorch
@@ -111,6 +111,8 @@ python -m svglatte.scripts.argoverse_visualize_viewbox_sizes --sequences_path ${
 
 ## Running Svg-latte
 
+TODO: Instructions outdated, see `svglatte/scripts/slurm/sbatch/` (batches 10 to 15) for the latest set of experiments
+
 The best Svg-latte result on the ArgoSVG dataset can be inspected on [wandb](https://wandb.ai/user72/svglatte_argoverse_128x128_rotAUG/runs/S9.01_ARGO4_FC.4c_rotAUG_noLN_noCX_NGF-16_GC-None_05.13_03.56.46?workspace=user-user72):
 
 - `train/loss_epoch=0.007657211739569902`
@@ -119,19 +121,49 @@ The best Svg-latte result on the ArgoSVG dataset can be inspected on [wandb](htt
 
 To reproduce these results, run the following Svg-latte configuration:
 
-TODO: Update
-
 ```sh
 export ARGOVERSE_DATA_ROOT=data/argoverse
 
-python -m svglatte.train --experiment_name=svglatte_argoverse_128x128_rotAUG --experiment_version 'S9.01_ARGO4_FC.4c_rotAUG_noLN_noCX_NGF=16_GC=None' --gpus -1 --n_epochs 450 --early_stopping_patience 50 --batch_size=512 --encoder_lr 0.00042 --decoder_lr 0.00042 --encoder_weight_decay 0.0 --decoder_weight_decay 0.0 --encoder_type fc_lstm --lstm_num_layers 4 --latte_ingredients c --decoder_n_filters_in_last_conv_layer 16 --no_layernorm --cx_loss_w 0.0 --dataset=argoverse --argoverse_cached_sequences_format svgtensor_data --argoverse_data_root ${ARGOVERSE_DATA_ROOT} --argoverse_train_workers 30 --argoverse_val_workers 15 --argoverse_rendered_images_width 128 --argoverse_rendered_images_height 128 --argoverse_augment_train --argoverse_zoom_preprocess_factor 0.70710678118
+python -m svglatte.train \
+ --experiment_name svg-latte-hparamsearch \
+ --experiment_version 'S15.01__PositionalEncoding__Seed=72' \
+ --seed 72 \
+ --gpus -1 \
+ --n_epochs 1 \
+ --early_stopping_patience 80 \
+ --check_val_every_n_epoch 20 \
+ --batch_size 256 \
+ --encoder_lr 0.00042 \
+ --decoder_lr 2.1e-05 \
+ --encoder_weight_decay 0.0 \
+ --decoder_weight_decay 0.0 \
+ --encoder_type fc_lstm \
+ --lstm_num_layers 8 \
+ --latte_ingredients c \
+ --decoder_n_filters_in_last_conv_layer 16 \
+ --no_layernorm \
+ --cx_loss_w 0.0 \
+ --dataset argoverse \
+ --argoverse_sequences_format svgtensor_data \
+ --argoverse_train_sequences_path data/argoverse/train.sequences.torchsave \
+ --argoverse_val_sequences_path data/argoverse/val.sequences.torchsave \
+ --argoverse_test_sequences_path data/argoverse/test.sequences.torchsave \
+ --argoverse_train_workers 40 \
+ --argoverse_val_workers 3 \
+ --argoverse_rendered_images_width 128 \
+ --argoverse_rendered_images_height 128 \
+ --argoverse_augment_train --argoverse_zoom_preprocess_factor 0.70710678118 \
+ --precision 16 \
+ --gradient_clip_val 1.0 \
+ --seq_feature_dim 120 \
+ --embedding_style nerf
 ```
 
 To see other experiments we have run, take a look at the latest set of experiments in `svglatte/scripts/slurm/sbatch/sbatch_08` and `svglatte/scripts/slurm/sbatch/sbatch_09`. The results of all experiments are publicly accessible in the [user72/svglatte_argoverse_128x128_rotAUG](https://wandb.ai/user72/svglatte_argoverse_128x128_rotAUG?workspace=user-user72) Weights and Biases project.
 
 ## Running DeepSVG
 
-### ArgoSVG
+### DeepSVG on ArgoSVG
 
 To run the baseline on the ArgoSVG dataset, first preprocess the ArgoSVG dataset so that it can be used by DeepSVG by running the sequence of commands below. Nota bene: this might take a few hours to finish and tqdm might freeze, you can monitor the progress by counting the number of preprocessed `.svg` files created in the output folder (`ls -l {ARGOVERSE_DATA_ROOT}/svgdataset/train/svgs | wc -l`).
 ```sh
@@ -177,7 +209,7 @@ Comparison of DeepSVG and Svg-latte on the ArgoSVG dataset:
 <img src="assets/baseline_comparison.png" width=100% height=100% class="center">
 </p>
 
-### DeepSVG's Icons dataset
+### DeepSVG on DeepSVG's Icons dataset
 
 To run the baseline on DeepSVG's icons dataset you can either follow the instructions in the DeepSVG repository or the following. First, download the dataset by following the instructions in the DeepSVG submodule. Second, update the paths in the config module `svglatte.dataset.deepsvg_config.deepsvg_hierarchical_ordered_icons`. Third and final, run using the updated config module:
 ```sh
